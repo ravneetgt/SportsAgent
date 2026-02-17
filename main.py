@@ -1,8 +1,9 @@
 from fetch_news import fetch_news
 from generate_caption import generate_caption
 from get_image import get_image
-from push_to_sheet import push_if_new
 from create_post import create_post
+from upload_image import upload_image
+from push_to_sheet import push_if_new
 
 
 def run():
@@ -11,82 +12,60 @@ def run():
     news = fetch_news()
 
     if not news:
-        print("No news found.")
+        print("No news found")
         return
 
-    print("Total articles fetched:", len(news))
-
-    added_count = 0
-    skipped_count = 0
+    added = 0
+    skipped = 0
 
     for i, article in enumerate(news):
-        print("\n========================")
-        print(f"Processing {i+1}/{len(news)}")
-
+        print("\n====================")
+        print(f"{i+1}/{len(news)}")
         title = article.get("title", "")
         summary = article.get("summary", "")
         category = article.get("category", "")
-        query = article.get("query", "")
-
-        print("CATEGORY:", category)
-        print("TITLE:", title)
 
         try:
-            # -----------------------------
-            # 1. Generate caption
-            # -----------------------------
+            # 1) caption
             caption = generate_caption(title, summary, category)
 
-            print("\nCAPTION:")
-            print(caption)
-
-            # -----------------------------
-            # 2. Fetch image
-            # -----------------------------
-            image_url = get_image(title, category)
-
-            print("\nRAW IMAGE URL:", image_url)
-
-            if not image_url:
-                print("Skipping - no image")
-                skipped_count += 1
+            # 2) base image (pexels)
+            base_url = get_image(title, category)
+            if not base_url:
+                print("No base image")
+                skipped += 1
                 continue
 
-            # -----------------------------
-            # 3. Create branded image
-            # -----------------------------
-            final_image_path = create_post(image_url, title, caption)
-
-            print("FINAL IMAGE:", final_image_path)
-
-            if not final_image_path:
-                print("Skipping - image generation failed")
-                skipped_count += 1
+            # 3) create branded local image
+            local_path = create_post(base_url, title, caption)
+            if not local_path:
+                print("Create post failed")
+                skipped += 1
                 continue
 
-            # -----------------------------
-            # 4. Save to Google Sheet
-            # -----------------------------
-            added = push_if_new(article, caption, final_image_path)
+            # 4) upload to cloud
+            public_url = upload_image(local_path)
+            if not public_url:
+                print("Upload failed")
+                skipped += 1
+                continue
 
-            if added:
-                added_count += 1
-                print("✔ ADDED")
+            # 5) save URL (IMPORTANT)
+            ok = push_if_new(article, caption, public_url)
+
+            if ok:
+                added += 1
             else:
-                skipped_count += 1
-                print("⚠ SKIPPED")
+                skipped += 1
 
         except Exception as e:
-            print("❌ ERROR:", e)
+            print("ERROR:", e)
+            skipped += 1
 
-    print("\n========================")
-    print("DONE")
-    print("Added:", added_count)
-    print("Skipped:", skipped_count)
+    print("\nDONE")
+    print("Added:", added)
+    print("Skipped:", skipped)
 
 
-# -----------------------------
-# ENTRY POINT
-# -----------------------------
 if __name__ == "__main__":
     run()
