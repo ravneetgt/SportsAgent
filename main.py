@@ -28,15 +28,11 @@ def run():
             print("\n----------------------")
             print(f"Processing {i+1}/{len(articles)}")
 
-            title = article.get("title", "").strip()
-            summary = article.get("summary", "").strip()
-            category = article.get("category", "").strip()
+            title = article.get("title", "")
+            summary = article.get("summary", "")
+            category = article.get("category", "")
 
             print("Title:", title)
-
-            if not title:
-                print("Skipping empty title")
-                continue
 
             # -----------------------------
             # CAPTION
@@ -59,10 +55,13 @@ def run():
             # -----------------------------
             # CREATE POST IMAGE
             # -----------------------------
+            filename = f"posts/post_{int(time.time())}.jpg"
+
             post_path = create_post(
+                image_url,
                 title,
                 caption,
-                image_url
+                filename
             )
 
             if not post_path:
@@ -72,7 +71,7 @@ def run():
             print("File exists:", os.path.exists(post_path))
 
             # -----------------------------
-            # UPLOAD (Cloudinary)
+            # UPLOAD
             # -----------------------------
             uploaded_url = upload_image(post_path)
 
@@ -87,13 +86,16 @@ def run():
             # -----------------------------
             timestamp = int(time.time())
 
-            push_if_new(
+            row = [
                 category,
                 title,
                 caption,
                 uploaded_url,
+                "PENDING",
                 timestamp
-            )
+            ]
+
+            push_if_new(row)
 
             print("Done")
 

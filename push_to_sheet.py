@@ -4,6 +4,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 SHEET_NAME = "Sports AI Content"
 
 
+# -----------------------------
+# CONNECT TO SHEET
+# -----------------------------
 def get_sheet():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -18,28 +21,38 @@ def get_sheet():
     return client.open(SHEET_NAME).sheet1
 
 
+# -----------------------------
+# GET EXISTING TITLES (DEDUP)
+# -----------------------------
 def existing_titles(sheet):
-    values = sheet.col_values(2)  # Title column
-    return set(v.strip() for v in values if v)
+    try:
+        values = sheet.col_values(2)  # Column B = Title
+        return set(v.strip() for v in values if v)
+    except Exception as e:
+        print("Error reading titles:", e)
+        return set()
 
 
-def push_if_new(category, title, caption, image_url, timestamp):
-    sheet = get_sheet()
-    titles = existing_titles(sheet)
+# -----------------------------
+# PUSH ROW IF NEW
+# -----------------------------
+def push_if_new(row):
+    try:
+        sheet = get_sheet()
 
-    if title.strip() in titles:
-        print("SKIP (duplicate):", title[:60])
+        titles = existing_titles(sheet)
+
+        title = str(row[1]).strip()
+
+        if title in titles:
+            print("SKIP (duplicate):", title[:60])
+            return False
+
+        sheet.append_row(row)
+        print("ADDED:", title[:60])
+
+        return True
+
+    except Exception as e:
+        print("Sheet push error:", e)
         return False
-
-    row = [
-        category,
-        title,
-        caption,
-        image_url,
-        "PENDING",
-        timestamp
-    ]
-
-    sheet.append_row(row)
-    print("ADDED:", title[:60])
-    return True
