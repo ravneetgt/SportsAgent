@@ -92,7 +92,7 @@ def run_pipeline():
 # -----------------------------
 st.set_page_config(page_title="Sports Dashboard", layout="wide")
 
-st.title("Gametrait Sports Content Dashboard")
+st.title("Gametrait Sports Content")
 
 # -----------------------------
 # BUTTONS
