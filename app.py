@@ -92,7 +92,7 @@ def run_pipeline():
 # -----------------------------
 st.set_page_config(page_title="Sports Dashboard", layout="wide")
 
-st.title("Gametrait Sports Content")
+st.title("Sports Content Dashboard")
 
 # -----------------------------
 # BUTTONS
@@ -125,29 +125,36 @@ if not data:
 
 
 # -----------------------------
-# PREP DATE
-# -----------------------------
-from datetime import datetime
-
-# -----------------------------
-# PREP DATE
+# PREP DATE (FIXED)
 # -----------------------------
 for row in data:
     ts = row.get(COL_DATE)
 
-    if ts:
-        try:
+    try:
+        # -----------------------------
+        # Case 1: Timestamp
+        # -----------------------------
+        if ts and str(ts).isdigit():
             ts = int(ts)
-
             dt = datetime.fromtimestamp(ts)
 
             row["_date_obj"] = dt.date()
-            row["_date_str"] = dt.strftime("%Y-%m-%d %H:%M")
+            row["_date_str"] = dt.strftime("%d %b %Y • %H:%M")
 
-        except:
+        # -----------------------------
+        # Case 2: Old format YYYY-MM-DD
+        # -----------------------------
+        elif isinstance(ts, str) and "-" in ts:
+            dt = datetime.strptime(ts, "%Y-%m-%d")
+
+            row["_date_obj"] = dt.date()
+            row["_date_str"] = dt.strftime("%d %b %Y")
+
+        else:
             row["_date_obj"] = None
             row["_date_str"] = ""
-    else:
+
+    except:
         row["_date_obj"] = None
         row["_date_str"] = ""
 
@@ -204,7 +211,7 @@ for row in filtered:
     caption = row.get(COL_CAPTION, "")
     image_url = row.get(COL_IMAGE, "")
     status = row.get(COL_STATUS, "")
-    date = row.get(COL_DATE, "")
+    date_str = row.get("_date_str", "")
 
     st.subheader(title)
 
@@ -215,15 +222,19 @@ for row in filtered:
     # -----------------------------
     with col1:
         if image_url:
-            # Case 1: Local file
-            if os.path.exists(image_url):
-                st.image(image_url, use_container_width=True)
+            try:
+                # Case 1: URL
+                if str(image_url).startswith("http"):
+                    st.image(image_url, use_container_width=True)
 
-            # Case 2: URL
-            elif image_url.startswith("http"):
-                st.image(image_url, use_container_width=True)
+                # Case 2: Local file (works locally only)
+                elif os.path.exists(image_url):
+                    st.image(image_url, use_container_width=True)
 
-            else:
+                else:
+                    st.write("Image not accessible")
+
+            except Exception:
                 st.write("Image not accessible")
         else:
             st.write("No image")
@@ -234,7 +245,7 @@ for row in filtered:
     with col2:
         st.write("Category:", category)
         st.write("Status:", status)
-        st.write("Date:", date)
+        st.write("Date:", date_str)
 
         new_caption = st.text_area(
             "Caption",
