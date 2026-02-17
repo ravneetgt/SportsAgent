@@ -2,69 +2,76 @@ from fetch_news import fetch_news
 from generate_caption import generate_caption
 from get_image import get_image
 from create_post import create_post
-from upload_image import upload_image
 from push_to_sheet import push_if_new
+from rank_news import rank_news
+from upload_image import upload_image
+import time
 
 
 def run():
-    print("\nRUNNING MAIN...\n")
+    print("Starting pipeline...")
 
     news = fetch_news()
 
-    if not news:
-        print("No news found")
-        return
+    print("Fetched:", len(news))
 
-    added = 0
-    skipped = 0
+    news = rank_news(news)
 
     for i, article in enumerate(news):
-        print("\n====================")
-        print(f"{i+1}/{len(news)}")
-        title = article.get("title", "")
-        summary = article.get("summary", "")
-        category = article.get("category", "")
-
         try:
-            # 1) caption
-            caption = generate_caption(title, summary, category)
+            title = article["title"]
+            category = article["category"]
 
-            # 2) base image (pexels)
-            base_url = get_image(title, category)
-            if not base_url:
-                print("No base image")
-                skipped += 1
+            print("\nProcessing:", title[:60])
+
+            # caption
+            caption = generate_caption(title)
+
+            # image search
+            query = f"{category} sports action"
+            image_url = get_image(query)
+
+            if not image_url:
+                print("No image")
                 continue
 
-            # 3) create branded local image
-            local_path = create_post(base_url, title, caption)
-            if not local_path:
-                print("Create post failed")
-                skipped += 1
+            # create post
+            filename = f"post_{int(time.time())}.jpg"
+
+            post_path = create_post(
+                image_url=image_url,
+                title=title,
+                caption=caption,
+                filename=filename
+            )
+
+            if not post_path:
+                print("Post creation failed")
                 continue
 
-            # 4) upload to cloud
-            public_url = upload_image(local_path)
+            # upload image
+            public_url = upload_image(post_path)
+
             if not public_url:
                 print("Upload failed")
-                skipped += 1
                 continue
 
-            # 5) save URL (IMPORTANT)
-            ok = push_if_new(article, caption, public_url)
+            # timestamp
+            timestamp = int(time.time())
 
-            if ok:
-                added += 1
-            else:
-                skipped += 1
+            row = [
+                category,
+                title,
+                caption,
+                public_url,
+                "PENDING",
+                timestamp
+            ]
+
+            push_if_new(row)
 
         except Exception as e:
             print("ERROR:", e)
-            skipped += 1
-
-    print("\nDONE")
-    print("Added:", added)
-    print("Skipped:", skipped)
 
 
 if __name__ == "__main__":

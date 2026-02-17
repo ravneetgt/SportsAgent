@@ -4,40 +4,43 @@ from io import BytesIO
 import textwrap
 import os
 
-
+# -----------------------------
+# CONFIG
+# -----------------------------
 WIDTH = 1080
 HEIGHT = 1350
 
 PADDING = 80
-TEXT_WIDTH = WIDTH - (PADDING * 2)
+LINE_SPACING = 10
+
+LOGO_PATH = "assets/logo.png"  # put your logo here
 
 
-def load_font(size, bold=False):
+# -----------------------------
+# LOAD IMAGE
+# -----------------------------
+def load_image(url):
     try:
-        if bold:
-            return ImageFont.truetype("Helvetica-Bold.ttf", size)
-        return ImageFont.truetype("Helvetica.ttf", size)
-    except:
-        return ImageFont.load_default()
-
-
-def download_image(url):
-    try:
-        response = requests.get(url)
-        img = Image.open(BytesIO(response.content)).convert("RGB")
+        res = requests.get(url)
+        img = Image.open(BytesIO(res.content)).convert("RGB")
         return img
     except:
-        return None
+        return Image.new("RGB", (WIDTH, HEIGHT), "black")
 
 
-def resize_crop(img):
+# -----------------------------
+# RESIZE + CROP
+# -----------------------------
+def resize_image(img):
     img_ratio = img.width / img.height
     target_ratio = WIDTH / HEIGHT
 
     if img_ratio > target_ratio:
+        # crop width
         new_height = HEIGHT
-        new_width = int(img_ratio * new_height)
+        new_width = int(new_height * img_ratio)
     else:
+        # crop height
         new_width = WIDTH
         new_height = int(new_width / img_ratio)
 
@@ -49,136 +52,141 @@ def resize_crop(img):
     return img.crop((left, top, left + WIDTH, top + HEIGHT))
 
 
-def wrap_text(text, font, max_width, draw):
-    words = text.split()
-    lines = []
-    current_line = ""
+# -----------------------------
+# GRADIENT OVERLAY
+# -----------------------------
+def add_gradient(img):
+    overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
 
-    for word in words:
-        test_line = current_line + " " + word if current_line else word
-        w, h = draw.textbbox((0, 0), test_line, font=font)[2:]
-        if w <= max_width:
-            current_line = test_line
-        else:
-            lines.append(current_line)
-            current_line = word
+    # Bottom dark gradient
+    for i in range(HEIGHT):
+        opacity = int(180 * (i / HEIGHT))
+        draw.line((0, HEIGHT - i, WIDTH, HEIGHT - i), fill=(0, 0, 0, opacity))
 
-    if current_line:
-        lines.append(current_line)
-
-    return lines
+    img = Image.alpha_composite(img.convert("RGBA"), overlay)
+    return img
 
 
-def draw_multiline_centered(draw, lines, font, y_start):
-    y = y_start
+# -----------------------------
+# LOAD FONTS
+# -----------------------------
+def load_fonts():
+    try:
+        title_font = ImageFont.truetype("Helvetica.ttf", 64)
+        body_font = ImageFont.truetype("Helvetica.ttf", 36)
+        small_font = ImageFont.truetype("Helvetica.ttf", 28)
+    except:
+        # fallback if Helvetica not available
+        title_font = ImageFont.load_default()
+        body_font = ImageFont.load_default()
+        small_font = ImageFont.load_default()
 
+    return title_font, body_font, small_font
+
+
+# -----------------------------
+# DRAW TEXT
+# -----------------------------
+def draw_caption(draw, caption, fonts):
+    title_font, body_font, _ = fonts
+
+    lines = caption.strip().split("\n")
+
+    # Wrap each line properly
+    wrapped_lines = []
     for line in lines:
-        w, h = draw.textbbox((0, 0), line, font=font)[2:]
-        x = (WIDTH - w) / 2
+        wrapped_lines.extend(textwrap.wrap(line, width=30))
 
-        draw.text((x, y), line, fill="white", font=font)
-        y += h + 10
+    # Start from bottom
+    y = HEIGHT - 400
 
-    return y
+    for i, line in enumerate(wrapped_lines):
+        font = title_font if i == 0 else body_font
+
+        draw.text(
+            (PADDING, y),
+            line,
+            font=font,
+            fill=(255, 255, 255)
+        )
+
+        y += font.size + LINE_SPACING
 
 
-def create_post(image_url, title, caption, output_path="output/post.jpg"):
-    base = download_image(image_url)
+# -----------------------------
+# LOGO (TOP LEFT)
+# -----------------------------
+def add_logo(img):
+    try:
+        logo = Image.open(LOGO_PATH).convert("RGBA")
 
-    if base is None:
-        print("Image failed")
-        return None
-
-    base = resize_crop(base)
-
-    # overlay gradient
-    overlay = Image.new("RGBA", base.size, (0, 0, 0, 120))
-    base = Image.alpha_composite(base.convert("RGBA"), overlay)
-
-    draw = ImageDraw.Draw(base)
-
-    # -----------------------
-    # FONTS
-    # -----------------------
-    title_font = load_font(60, bold=True)
-    caption_font = load_font(38)
-    brand_font = load_font(32)
-
-    # -----------------------
-    # TITLE WRAP
-    # -----------------------
-    title = title.split("-")[0].strip()  # clean source names
-    title_lines = wrap_text(title, title_font, TEXT_WIDTH, draw)
-
-    # limit lines
-    title_lines = title_lines[:3]
-
-    # -----------------------
-    # CAPTION WRAP
-    # -----------------------
-    caption_lines = wrap_text(caption, caption_font, TEXT_WIDTH, draw)
-    caption_lines = caption_lines[:4]
-
-    # -----------------------
-    # POSITIONING
-    # -----------------------
-    total_height = 0
-
-    for line in title_lines:
-        _, h = draw.textbbox((0, 0), line, font=title_font)[2:]
-        total_height += h + 10
-
-    total_height += 20
-
-    for line in caption_lines:
-        _, h = draw.textbbox((0, 0), line, font=caption_font)[2:]
-        total_height += h + 8
-
-    y_start = HEIGHT - total_height - 150
-
-    # -----------------------
-    # DRAW TITLE
-    # -----------------------
-    y = draw_multiline_centered(draw, title_lines, title_font, y_start)
-
-    y += 20
-
-    # -----------------------
-    # DRAW CAPTION
-    # -----------------------
-    y = draw_multiline_centered(draw, caption_lines, caption_font, y)
-
-    # -----------------------
-    # BRAND TEXT (bottom right)
-    # -----------------------
-    brand_text = "GAMETRAIT"
-    w, h = draw.textbbox((0, 0), brand_text, font=brand_font)[2:]
-
-    draw.text(
-        (WIDTH - w - 40, HEIGHT - h - 40),
-        brand_text,
-        fill=(255, 255, 255, 200),
-        font=brand_font
-    )
-
-    # -----------------------
-    # WATERMARK (top left)
-    # -----------------------
-    logo_path = "logo.png"
-
-    if os.path.exists(logo_path):
-        logo = Image.open(logo_path).convert("RGBA")
+        # Resize logo
         logo = logo.resize((120, 120))
 
-        logo.putalpha(80)
+        # Make it semi-transparent
+        alpha = logo.split()[3]
+        alpha = alpha.point(lambda p: p * 0.6)
+        logo.putalpha(alpha)
 
-        base.paste(logo, (40, 40), logo)
+        img.paste(logo, (40, 40), logo)
 
-    # -----------------------
-    # SAVE
-    # -----------------------
-    os.makedirs("output", exist_ok=True)
-    base = base.convert("RGB")
-    base.save(output_path, quality=95)
+    except Exception as e:
+        print("Logo error:", e)
+
+    return img
+
+
+# -----------------------------
+# WORDMARK (TOP RIGHT)
+# -----------------------------
+def add_wordmark(draw, fonts):
+    _, _, small_font = fonts
+
+    text = "GAMETRAIT"
+
+    w, h = draw.textsize(text, font=small_font)
+
+    x = WIDTH - w - 40
+    y = 60
+
+    draw.text((x, y), text, fill=(255, 255, 255), font=small_font)
+
+
+# -----------------------------
+# MAIN FUNCTION
+# -----------------------------
+def create_post(image_url, caption, output_path):
+    # Load + format image
+    img = load_image(image_url)
+    img = resize_image(img)
+    img = add_gradient(img)
+
+    draw = ImageDraw.Draw(img)
+
+    # Fonts
+    fonts = load_fonts()
+
+    # Caption
+    draw_caption(draw, caption, fonts)
+
+    # Branding
+    img = add_logo(img)
+    add_wordmark(draw, fonts)
+
+    # Save
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    img.convert("RGB").save(output_path, quality=95)
 
     return output_path
+
+
+# -----------------------------
+# TEST
+# -----------------------------
+if __name__ == "__main__":
+    create_post(
+        "https://images.pexels.com/photos/274506/pexels-photo-274506.jpeg",
+        "This win exposes deeper cracks\nIndia still struggles under pressure\nBig teams will punish this weakness",
+        "output/test.jpg"
+    )
