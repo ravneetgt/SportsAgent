@@ -1,7 +1,7 @@
 from fetch_news import fetch_news
 from generate_caption import generate_caption
 from get_image import get_image
-from create_post import create_post
+from push_to_sheet import push_if_new
 
 
 def run():
@@ -9,36 +9,58 @@ def run():
 
     news = fetch_news()
 
-    print("Articles found:", len(news))
+    if not news:
+        print("No news found.")
+        return
 
-    for article in news:
+    print("Total articles fetched:", len(news))
+
+    added_count = 0
+    skipped_count = 0
+
+    for i, article in enumerate(news):
+        print("\n========================")
+        print(f"Processing {i+1}/{len(news)}")
+
+        title = article.get("title", "")
+        summary = article.get("summary", "")
+        category = article.get("category", "")
+        query = article.get("query", "")
+
+        print("CATEGORY:", category)
+        print("TITLE:", title)
+
         try:
-            print("\n========================")
+            # 1. Generate caption
+            caption = generate_caption(title, summary, category)
 
-            # Step 1: Caption
-            caption = generate_caption(
-                article["title"],
-                article["summary"],
-                article["category"]
-            )
+            print("\nCAPTION:")
+            print(caption)
 
-            # Step 2: Image
-            image_url = get_image(article["query"])
+            # 2. Get image
+            image_url = get_image(query)
 
-            # Step 3: Create branded post
-            final_image = create_post(
-                image_url,
-                article["title"],
-                caption
-            )
+            print("\nIMAGE URL:", image_url)
 
-            print("CATEGORY:", article["category"])
-            print("TITLE:", article["title"])
-            print("QUERY:", article["query"])
-            print("IMAGE:", final_image)
+            # 3. Push to sheet
+            print("\nCalling push...")
+
+            added = push_if_new(article, caption, image_url)
+
+            print("Result:", added)
+
+            if added:
+                added_count += 1
+            else:
+                skipped_count += 1
 
         except Exception as e:
             print("ERROR:", e)
+
+    print("\n========================")
+    print("DONE")
+    print("Added:", added_count)
+    print("Skipped:", skipped_count)
 
 
 if __name__ == "__main__":

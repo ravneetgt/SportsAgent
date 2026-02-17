@@ -12,14 +12,11 @@ def get_image(query):
         print("PEXELS_API_KEY missing")
         return None
 
-    # Improve query quality
-    enhanced_query = f"{query} sports action"
-
     url = "https://api.pexels.com/v1/search"
 
     params = {
-        "query": enhanced_query,
-        "per_page": 5,
+        "query": f"{query} sports action",
+        "per_page": 3,
         "orientation": "portrait"
     }
 
@@ -34,7 +31,7 @@ def get_image(query):
         photos = data.get("photos", [])
 
         if not photos:
-            print(f"No image found for: {query}")
+            print("No image found")
             return None
 
         return photos[0]["src"]["large"]
@@ -42,8 +39,3 @@ def get_image(query):
     except Exception as e:
         print("Image error:", e)
         return None
-
-
-# test
-if __name__ == "__main__":
-    print(get_image("India vs Australia cricket"))
