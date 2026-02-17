@@ -15,52 +15,23 @@ def run():
 
     print("Total articles fetched:", len(news))
 
-    added_count = 0
-    skipped_count = 0
-
-    for i, article in enumerate(news):
+    for article in news:
         print("\n========================")
-        print(f"Processing {i+1}/{len(news)}")
-
-        title = article.get("title", "")
-        summary = article.get("summary", "")
-        category = article.get("category", "")
-        query = article.get("query", "")
-
-        print("CATEGORY:", category)
-        print("TITLE:", title)
+        print("TITLE:", article["title"])
 
         try:
-            # 1. Generate caption
-            caption = generate_caption(title, summary, category)
+            caption = generate_caption(
+                article["title"],
+                article["summary"],
+                article["category"]
+            )
 
-            print("\nCAPTION:")
-            print(caption)
+            image_url = get_image(article["query"])
 
-            # 2. Get image
-            image_url = get_image(query)
-
-            print("\nIMAGE URL:", image_url)
-
-            # 3. Push to sheet
-            print("\nCalling push...")
-
-            added = push_if_new(article, caption, image_url)
-
-            print("Result:", added)
-
-            if added:
-                added_count += 1
-            else:
-                skipped_count += 1
+            push_if_new(article, caption, image_url)
 
         except Exception as e:
             print("ERROR:", e)
-
-    print("\n========================")
-    print("DONE")
-    print("Added:", added_count)
-    print("Skipped:", skipped_count)
 
 
 if __name__ == "__main__":
