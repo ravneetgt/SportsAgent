@@ -1,93 +1,81 @@
 from PIL import Image, ImageDraw, ImageFont
-import textwrap
+import requests
+from io import BytesIO
 import os
 
-WIDTH = 1080
-HEIGHT = 1350
-PADDING = 80
 
-
-def wrap_text(text, width=20):
-    return "\n".join(textwrap.wrap(text, width=width))
-
-
-def load_font(name, size):
+def create_post(image_url, title, caption):
     try:
-        return ImageFont.truetype(name, size)
-    except:
-        return ImageFont.load_default()
+        if not image_url:
+            print("No image URL")
+            return None
 
+        # 1. Load image
+        response = requests.get(image_url)
+        img = Image.open(BytesIO(response.content)).convert("RGBA")
 
-def create_post(title, caption, category, index):
-    # background
-    img = Image.new("RGB", (WIDTH, HEIGHT), color=(15, 15, 20))
-    draw = ImageDraw.Draw(img)
+        # Resize to Instagram
+        img = img.resize((1080, 1350))
 
-    # fonts
-    title_font = load_font("Arial Bold.ttf", 90)
-    caption_font = load_font("Arial.ttf", 42)
-    small_font = load_font("Arial.ttf", 30)
+        # 2. Add gradient overlay (premium look)
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
 
-    # shorten title
-    short_title = " ".join(title.split()[:6])
-    title_text = wrap_text(short_title.upper(), 12)
+        for y in range(img.height):
+            opacity = int(200 * (y / img.height))
+            draw.line((0, y, img.width, y), fill=(0, 0, 0, opacity))
 
-    # use first line of caption
-    first_line = caption.split("\n")[0]
-    caption_text = wrap_text(first_line, 25)
+        img = Image.alpha_composite(img, overlay)
 
-    # category color
-    if category == "cricket":
-        accent = (80, 180, 120)
-    else:
-        accent = (120, 140, 255)
+        # 3. Load logo
+        logo_path = "assets/logo.png"
 
-    # category label
-    draw.text(
-        (PADDING, 120),
-        category.upper(),
-        font=small_font,
-        fill=accent
-    )
+        if os.path.exists(logo_path):
+            logo = Image.open(logo_path).convert("RGBA")
 
-    # title
-    draw.text(
-        (PADDING, 300),
-        title_text,
-        font=title_font,
-        fill=(255, 255, 255)
-    )
+            # Resize logo
+            logo_width = 180
+            ratio = logo_width / logo.width
+            logo = logo.resize((logo_width, int(logo.height * ratio)))
 
-    # caption
-    draw.text(
-        (PADDING, 750),
-        caption_text,
-        font=caption_font,
-        fill=(180, 180, 180)
-    )
+            # Fade logo
+            alpha = logo.split()[3]
+            alpha = alpha.point(lambda p: int(p * 0.5))
+            logo.putalpha(alpha)
 
-    # brand
-    draw.text(
-        (PADDING, HEIGHT - 120),
-        "EDGE OF PLAY",
-        font=small_font,
-        fill=(120, 120, 120)
-    )
+            # Position center-bottom
+            x = (img.width - logo.width) // 2
+            y = img.height - logo.height - 40
 
-    # save
-    os.makedirs("posts", exist_ok=True)
-    path = f"posts/post_{index}.jpg"
-    img.save(path, quality=95)
+            img.paste(logo, (x, y), logo)
 
-    return path
+        else:
+            print("Logo not found at assets/logo.png")
 
+        # 4. Add text
+        draw = ImageDraw.Draw(img)
 
-# test
-if __name__ == "__main__":
-    p = create_post(
-        "India beat Pakistan in thriller",
-        "India didn’t dominate this.\nPakistan collapsed under pressure.",
-        "cricket",
-        1
-    )
-    print(p)
+        try:
+            font_title = ImageFont.truetype("Helvetica.ttc", 60)
+            font_caption = ImageFont.truetype("Helvetica.ttc", 38)
+        except:
+            font_title = ImageFont.load_default()
+            font_caption = ImageFont.load_default()
+
+        # Shorten title
+        short_title = title[:70] + "..."
+
+        draw.text((40, 900), short_title, fill="white", font=font_title)
+        draw.text((40, 1020), caption[:220], fill="white", font=font_caption)
+
+        # 5. Save
+        os.makedirs("output", exist_ok=True)
+        output_path = f"output/post_{abs(hash(title))}.jpg"
+
+        img.convert("RGB").save(output_path, quality=95)
+
+        return output_path
+
+    except Exception as e:
+        print("Post generation error:", e)
+        return None
