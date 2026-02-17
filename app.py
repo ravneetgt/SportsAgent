@@ -32,7 +32,6 @@ def get_sheet():
     )
 
     client = gspread.authorize(creds)
-
     return client.open(SHEET_NAME).sheet1
 
 
@@ -42,11 +41,9 @@ def get_sheet():
 @st.cache_data(ttl=30)
 def load_data():
     sheet = get_sheet()
-
     raw = sheet.get_all_records()
 
     data = []
-
     for i, row in enumerate(raw):
         row["_row"] = i + 2
         data.append(row)
@@ -55,37 +52,41 @@ def load_data():
 
 
 # -----------------------------
-# UPDATE STATUS
+# UPDATE FUNCTIONS
 # -----------------------------
 def update_status(sheet_row, status):
     try:
         sheet = get_sheet()
-
         header = sheet.row_values(1)
-
         col_index = header.index(COL_STATUS) + 1
-
         sheet.update_cell(sheet_row, col_index, status)
-
     except Exception as e:
         st.error(f"Update failed: {e}")
 
 
-# -----------------------------
-# UPDATE CAPTION
-# -----------------------------
 def update_caption(sheet_row, caption):
     try:
         sheet = get_sheet()
-
         header = sheet.row_values(1)
-
         col_index = header.index(COL_CAPTION) + 1
-
         sheet.update_cell(sheet_row, col_index, caption)
-
     except Exception as e:
         st.error(f"Caption update failed: {e}")
+
+
+# -----------------------------
+# RUN PIPELINE (FIXED)
+# -----------------------------
+def run_pipeline():
+    try:
+        from main import run
+
+        run()
+
+        return "Pipeline executed successfully"
+
+    except Exception as e:
+        return str(e)
 
 
 # -----------------------------
@@ -95,10 +96,32 @@ st.set_page_config(page_title="Sports Dashboard", layout="wide")
 
 st.title("Sports Content Dashboard")
 
-if st.button("Refresh"):
+# -----------------------------
+# TOP BUTTONS
+# -----------------------------
+colA, colB = st.columns(2)
+
+# Refresh button
+if colA.button("Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
+# Fetch new news button
+if colB.button("Fetch New News"):
+    with st.spinner("Fetching latest news..."):
+        output = run_pipeline()
+
+    st.success("Fetch complete")
+
+    st.code(output)
+
+    st.cache_data.clear()
+    st.rerun()
+
+
+# -----------------------------
+# LOAD DATA
+# -----------------------------
 data = load_data()
 
 if not data:
@@ -124,18 +147,13 @@ for row in data:
 # -----------------------------
 statuses = sorted(list(set([str(r.get(COL_STATUS, "")) for r in data])))
 categories = sorted(list(set([str(r.get(COL_CATEGORY, "")) for r in data])))
-
 dates = sorted(list(set([r["_date_obj"] for r in data if r["_date_obj"]])))
 
 st.sidebar.header("Filters")
 
 selected_status = st.sidebar.selectbox("Status", ["ALL"] + statuses)
 selected_category = st.sidebar.selectbox("Sport", ["ALL"] + categories)
-
-selected_date = st.sidebar.selectbox(
-    "Date",
-    ["ALL"] + [str(d) for d in dates]
-)
+selected_date = st.sidebar.selectbox("Date", ["ALL"] + [str(d) for d in dates])
 
 only_pending = st.sidebar.checkbox("Only Pending", value=False)
 
