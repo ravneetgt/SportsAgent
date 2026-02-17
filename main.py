@@ -43,7 +43,7 @@ def run():
             # -----------------------------
             # 2. Fetch image
             # -----------------------------
-            image_url = get_image(query)
+            image_url = get_image(title, category)
 
             print("\nRAW IMAGE URL:", image_url)
 

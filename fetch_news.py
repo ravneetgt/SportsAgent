@@ -15,8 +15,33 @@ def clean_html(text):
 
 
 def extract_keywords(title):
+    # remove noise
+    title = title.replace("-", " ").replace(":", " ")
+
     words = title.split()
-    return " ".join(words[:5])
+
+    # keep first few meaningful words
+    important = [w for w in words if len(w) > 3][:5]
+
+    return " ".join(important)
+
+
+def build_query(title, category):
+    keywords = extract_keywords(title)
+
+    if category == "cricket":
+        return f"{keywords} cricket match action"
+
+    if category == "football":
+        return f"{keywords} football match stadium action"
+
+    if category == "tennis":
+        return f"{keywords} tennis match player action"
+
+    if category == "f1":
+        return f"{keywords} formula 1 car race track"
+
+    return f"{keywords} sports"
 
 
 def fetch_news():
@@ -28,11 +53,16 @@ def fetch_news():
         feed = feedparser.parse(url)
 
         for entry in feed.entries[:5]:
+            title = entry.title
+            summary = clean_html(entry.summary) if "summary" in entry else ""
+
+            query = build_query(title, category)
+
             articles.append({
                 "category": category,
-                "title": entry.title,
-                "summary": clean_html(entry.summary) if "summary" in entry else "",
-                "query": extract_keywords(entry.title)
+                "title": title,
+                "summary": summary,
+                "query": query
             })
 
     return articles
