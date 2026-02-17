@@ -13,6 +13,7 @@ COL_CAPTION = "Caption"
 COL_IMAGE = "Image URL"
 COL_STATUS = "Status"
 
+
 # -----------------------------
 # GOOGLE SHEETS
 # -----------------------------
@@ -30,19 +31,31 @@ def get_sheet():
 
     client = gspread.authorize(creds)
 
-    sheet = client.open(SPREADSHEET_NAME).sheet1
-
-    return sheet
+    return client.open(SPREADSHEET_NAME).sheet1
 
 
+# -----------------------------
+# LOAD DATA (WITH ROW INDEX)
+# -----------------------------
 @st.cache_data(ttl=60)
 def load_data():
     sheet = get_sheet()
-    data = sheet.get_all_records()
+
+    raw = sheet.get_all_records()
+
+    data = []
+
+    for i, row in enumerate(raw):
+        row["_row"] = i + 2  # actual row in Google Sheet
+        data.append(row)
+
     return sheet, data
 
 
-def update_status(sheet, row_index, status):
+# -----------------------------
+# UPDATE STATUS
+# -----------------------------
+def update_status(sheet, sheet_row, status):
     header = sheet.row_values(1)
 
     if COL_STATUS not in header:
@@ -51,8 +64,22 @@ def update_status(sheet, row_index, status):
 
     col_index = header.index(COL_STATUS) + 1
 
-    # +2 because sheet starts at row 1 and header is row 1
-    sheet.update_cell(row_index + 2, col_index, status)
+    sheet.update_cell(sheet_row, col_index, status)
+
+
+# -----------------------------
+# UPDATE CAPTION
+# -----------------------------
+def update_caption(sheet, sheet_row, caption):
+    header = sheet.row_values(1)
+
+    if COL_CAPTION not in header:
+        st.error("Caption column missing")
+        return
+
+    col_index = header.index(COL_CAPTION) + 1
+
+    sheet.update_cell(sheet_row, col_index, caption)
 
 
 # -----------------------------
@@ -68,11 +95,12 @@ if not data:
     st.warning("No data found")
     st.stop()
 
+
 # -----------------------------
 # FILTERS
 # -----------------------------
-statuses = sorted(list(set([str(r.get(COL_STATUS, "")) for r in data])))
-categories = sorted(list(set([str(r.get(COL_CATEGORY, "")) for r in data])))
+statuses = sorted(list(set([str(r.get(COL_STATUS, "")).strip() for r in data])))
+categories = sorted(list(set([str(r.get(COL_CATEGORY, "")).strip() for r in data])))
 
 st.sidebar.header("Filters")
 
@@ -88,6 +116,7 @@ selected_category = st.sidebar.selectbox(
 
 only_pending = st.sidebar.checkbox("Only show pending", value=False)
 
+
 # -----------------------------
 # FILTER LOGIC
 # -----------------------------
@@ -96,34 +125,37 @@ filtered = data
 if selected_status != "ALL":
     filtered = [
         r for r in filtered
-        if str(r.get(COL_STATUS, "")) == selected_status
+        if str(r.get(COL_STATUS, "")).strip() == selected_status
     ]
 
 if selected_category != "ALL":
     filtered = [
         r for r in filtered
-        if str(r.get(COL_CATEGORY, "")) == selected_category
+        if str(r.get(COL_CATEGORY, "")).strip() == selected_category
     ]
 
 if only_pending:
     filtered = [
         r for r in filtered
-        if str(r.get(COL_STATUS, "")) == "PENDING"
+        if str(r.get(COL_STATUS, "")).strip() == "PENDING"
     ]
 
 st.write(f"Showing {len(filtered)} posts")
 
+
 # -----------------------------
 # DISPLAY POSTS
 # -----------------------------
-for i, row in enumerate(filtered):
+for row in filtered:
     st.markdown("---")
 
-    title = row.get(COL_TITLE)
-    category = row.get(COL_CATEGORY)
-    caption = row.get(COL_CAPTION)
-    image_url = row.get(COL_IMAGE)
-    status = row.get(COL_STATUS)
+    sheet_row = row["_row"]
+
+    title = row.get(COL_TITLE, "")
+    category = row.get(COL_CATEGORY, "")
+    caption = row.get(COL_CAPTION, "")
+    image_url = row.get(COL_IMAGE, "")
+    status = row.get(COL_STATUS, "")
 
     st.subheader(title)
 
@@ -144,26 +176,30 @@ for i, row in enumerate(filtered):
         st.write("Category:", category)
         st.write("Status:", status)
 
-        st.text_area(
+        edited_caption = st.text_area(
             "Caption",
             value=caption,
             height=120,
-            key=f"caption_{i}"
+            key=f"caption_{sheet_row}"
         )
 
-        b1, b2, b3 = st.columns(3)
+        # BUTTONS
+        b1, b2, b3, b4 = st.columns(4)
 
-        if b1.button("Approve", key=f"approve_{i}"):
-            update_status(sheet, i, "APPROVED")
+        # SAVE CAPTION
+        if b1.button("Save", key=f"save_{sheet_row}"):
+            update_caption(sheet, sheet_row, edited_caption)
+            st.success("Caption saved")
+            st.rerun()
+
+        # APPROVE
+        if b2.button("Approve", key=f"approve_{sheet_row}"):
+            update_status(sheet, sheet_row, "APPROVED")
             st.success("Approved")
             st.rerun()
 
-        if b2.button("Reject", key=f"reject_{i}"):
-            update_status(sheet, i, "REJECTED")
+        # REJECT
+        if b3.button("Reject", key=f"reject_{sheet_row}"):
+            update_status(sheet, sheet_row, "REJECTED")
             st.warning("Rejected")
-            st.rerun()
-
-        if b3.button("Pending", key=f"pending_{i}"):
-            update_status(sheet, i, "PENDING")
-            st.info("Set to pending")
             st.rerun()
