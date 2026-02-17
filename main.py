@@ -1,78 +1,108 @@
 from fetch_news import fetch_news
+from rank_news import rank_news
 from generate_caption import generate_caption
 from get_image import get_image
 from create_post import create_post
 from push_to_sheet import push_if_new
-from rank_news import rank_news
 from upload_image import upload_image
+
 import time
+import os
 
 
+# -----------------------------
+# MAIN PIPELINE
+# -----------------------------
 def run():
-    print("Starting pipeline...")
+    print("\n=== SPORTS AGENT START ===\n")
 
-    news = fetch_news()
+    # Step 1: Fetch news
+    articles = fetch_news()
 
-    print("Fetched:", len(news))
+    if not articles:
+        print("No articles found")
+        return
 
-    news = rank_news(news)
+    print(f"Fetched {len(articles)} articles")
 
-    for i, article in enumerate(news):
+    # Step 2: Rank news
+    articles = rank_news(articles)
+
+    print(f"Processing top {len(articles)} articles\n")
+
+    # Step 3: Process each article
+    for i, article in enumerate(articles):
         try:
-            title = article["title"]
-            category = article["category"]
+            print(f"\nProcessing {i+1}/{len(articles)}")
 
-            print("\nProcessing:", title[:60])
+            title = article.get("title", "")
+            summary = article.get("summary", "")
+            category = article.get("category", "")
+            link = article.get("link", "")
 
-            # caption
-            caption = generate_caption(title)
+            print("Title:", title)
 
-            # image search
-            query = f"{category} sports action"
-            image_url = get_image(query)
+            # -----------------------------
+            # Step 4: Generate caption
+            # -----------------------------
+            caption = generate_caption(title, summary, category)
+
+            if not caption:
+                print("Skipping (no caption)")
+                continue
+
+            # -----------------------------
+            # Step 5: Get image
+            # -----------------------------
+            image_url = get_image(title + " " + category)
 
             if not image_url:
-                print("No image")
+                print("Skipping (no image)")
                 continue
 
-            # create post
-            filename = f"post_{int(time.time())}.jpg"
+            # -----------------------------
+            # Step 6: Create post image
+            # -----------------------------
+            filename = f"posts/post_{int(time.time())}.jpg"
 
-            post_path = create_post(
-                image_url=image_url,
-                title=title,
-                caption=caption,
-                filename=filename
-            )
+            create_post(image_url, caption, filename)
 
-            if not post_path:
-                print("Post creation failed")
+            # -----------------------------
+            # Step 7: Upload image (Cloudinary)
+            # -----------------------------
+            uploaded_url = upload_image(filename)
+
+            if not uploaded_url:
+                print("Skipping (upload failed)")
                 continue
 
-            # upload image
-            public_url = upload_image(post_path)
-
-            if not public_url:
-                print("Upload failed")
-                continue
-
-            # timestamp
+            # -----------------------------
+            # Step 8: Save to Google Sheets
+            # -----------------------------
             timestamp = int(time.time())
 
             row = [
                 category,
                 title,
                 caption,
-                public_url,
+                uploaded_url,
                 "PENDING",
-                timestamp
+                timestamp,
+                link
             ]
 
             push_if_new(row)
 
+            print("Done")
+
         except Exception as e:
             print("ERROR:", e)
 
+    print("\n=== DONE ===\n")
 
+
+# -----------------------------
+# RUN DIRECTLY
+# -----------------------------
 if __name__ == "__main__":
     run()
