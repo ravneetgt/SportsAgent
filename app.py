@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import os
+
 
 # -----------------------------
 # CONFIG
@@ -45,8 +45,28 @@ def load_data():
     raw = sheet.get_all_records()
 
     data = []
+
     for i, row in enumerate(raw):
         row["_row"] = i + 2
+
+        # ---------- FIX TIMESTAMP ----------
+        ts = row.get(COL_DATE)
+
+        try:
+            ts = int(float(ts))
+            dt = datetime.fromtimestamp(ts)
+
+            row["_date_obj"] = dt
+            row["_date_str"] = dt.strftime("%d %b %Y")       # e.g. 17 Feb 2026
+            row["_time_str"] = dt.strftime("%I:%M %p")       # e.g. 03:45 PM
+            row["_datetime_str"] = dt.strftime("%d %b %Y, %I:%M %p")
+
+        except:
+            row["_date_obj"] = None
+            row["_date_str"] = "N/A"
+            row["_time_str"] = ""
+            row["_datetime_str"] = "N/A"
+
         data.append(row)
 
     return data
@@ -90,12 +110,13 @@ def run_pipeline():
 # -----------------------------
 # UI
 # -----------------------------
-st.set_page_config(page_title="Sports Dashboard", layout="wide")
+st.set_page_config(page_title="Gametrait Sports Dashboard", layout="wide")
 
-st.title("Sports Content Dashboard")
+st.title("Gametrait Sports Content Dashboard")
+
 
 # -----------------------------
-# BUTTONS
+# TOP BUTTONS
 # -----------------------------
 colA, colB = st.columns(2)
 
@@ -125,52 +146,20 @@ if not data:
 
 
 # -----------------------------
-# PREP DATE (FIXED)
-# -----------------------------
-for row in data:
-    ts = row.get(COL_DATE)
-
-    try:
-        # -----------------------------
-        # Case 1: Timestamp
-        # -----------------------------
-        if ts and str(ts).isdigit():
-            ts = int(ts)
-            dt = datetime.fromtimestamp(ts)
-
-            row["_date_obj"] = dt.date()
-            row["_date_str"] = dt.strftime("%d %b %Y • %H:%M")
-
-        # -----------------------------
-        # Case 2: Old format YYYY-MM-DD
-        # -----------------------------
-        elif isinstance(ts, str) and "-" in ts:
-            dt = datetime.strptime(ts, "%Y-%m-%d")
-
-            row["_date_obj"] = dt.date()
-            row["_date_str"] = dt.strftime("%d %b %Y")
-
-        else:
-            row["_date_obj"] = None
-            row["_date_str"] = ""
-
-    except:
-        row["_date_obj"] = None
-        row["_date_str"] = ""
-
-
-# -----------------------------
-# FILTERS
+# FILTER OPTIONS
 # -----------------------------
 statuses = sorted(list(set([str(r.get(COL_STATUS, "")) for r in data])))
 categories = sorted(list(set([str(r.get(COL_CATEGORY, "")) for r in data])))
-dates = sorted(list(set([r["_date_obj"] for r in data if r["_date_obj"]])))
+
+dates = sorted(
+    list(set([r["_date_str"] for r in data if r["_date_str"] != "N/A"]))
+)
 
 st.sidebar.header("Filters")
 
 selected_status = st.sidebar.selectbox("Status", ["ALL"] + statuses)
 selected_category = st.sidebar.selectbox("Sport", ["ALL"] + categories)
-selected_date = st.sidebar.selectbox("Date", ["ALL"] + [str(d) for d in dates])
+selected_date = st.sidebar.selectbox("Date", ["ALL"] + dates)
 
 only_pending = st.sidebar.checkbox("Only Pending", value=False)
 
@@ -187,13 +176,20 @@ if selected_category != "ALL":
     filtered = [r for r in filtered if str(r.get(COL_CATEGORY, "")) == selected_category]
 
 if selected_date != "ALL":
-    filtered = [
-        r for r in filtered
-        if r["_date_obj"] and str(r["_date_obj"]) == selected_date
-    ]
+    filtered = [r for r in filtered if r["_date_str"] == selected_date]
 
 if only_pending:
     filtered = [r for r in filtered if str(r.get(COL_STATUS, "")) == "PENDING"]
+
+
+# -----------------------------
+# SORT (LATEST FIRST)
+# -----------------------------
+filtered = sorted(
+    filtered,
+    key=lambda x: x["_date_obj"] if x["_date_obj"] else datetime.min,
+    reverse=True
+)
 
 st.write(f"Showing {len(filtered)} posts")
 
@@ -211,41 +207,20 @@ for row in filtered:
     caption = row.get(COL_CAPTION, "")
     image_url = row.get(COL_IMAGE, "")
     status = row.get(COL_STATUS, "")
-    date_str = row.get("_date_str", "")
+    datetime_display = row["_datetime_str"]
 
     st.subheader(title)
 
     col1, col2 = st.columns([2, 3])
 
-    # -----------------------------
-    # IMAGE HANDLING (FIXED)
-    # -----------------------------
     with col1:
         if image_url:
-            try:
-                # Case 1: URL
-                if str(image_url).startswith("http"):
-                    st.image(image_url, use_container_width=True)
+            st.image(image_url, use_container_width=True)
 
-                # Case 2: Local file (works locally only)
-                elif os.path.exists(image_url):
-                    st.image(image_url, use_container_width=True)
-
-                else:
-                    st.write("Image not accessible")
-
-            except Exception:
-                st.write("Image not accessible")
-        else:
-            st.write("No image")
-
-    # -----------------------------
-    # DETAILS
-    # -----------------------------
     with col2:
         st.write("Category:", category)
         st.write("Status:", status)
-        st.write("Date:", date_str)
+        st.write("Date:", datetime_display)
 
         new_caption = st.text_area(
             "Caption",
