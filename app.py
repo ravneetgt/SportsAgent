@@ -127,14 +127,29 @@ if not data:
 # -----------------------------
 # PREP DATE
 # -----------------------------
+from datetime import datetime
+
+# -----------------------------
+# PREP DATE
+# -----------------------------
 for row in data:
-    if COL_DATE in row and row[COL_DATE]:
+    ts = row.get(COL_DATE)
+
+    if ts:
         try:
-            row["_date_obj"] = datetime.strptime(row[COL_DATE], "%Y-%m-%d").date()
+            ts = int(ts)
+
+            dt = datetime.fromtimestamp(ts)
+
+            row["_date_obj"] = dt.date()
+            row["_date_str"] = dt.strftime("%Y-%m-%d %H:%M")
+
         except:
             row["_date_obj"] = None
+            row["_date_str"] = ""
     else:
         row["_date_obj"] = None
+        row["_date_str"] = ""
 
 
 # -----------------------------

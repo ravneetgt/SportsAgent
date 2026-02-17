@@ -90,7 +90,7 @@ def create_post(image_url, title, caption):
         # -----------------------------
         # WORDMARK (BOTTOM RIGHT)
         # -----------------------------
-        wordmark = "gametrait"
+        wordmark = "GAMETRAIT"
 
         # measure text
         bbox = draw.textbbox((0, 0), wordmark, font=font_brand)
