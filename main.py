@@ -3,81 +3,84 @@ from rank_news import rank_news
 from generate_caption import generate_caption
 from get_image import get_image
 from create_post import create_post
-from push_to_sheet import push_if_new
 from upload_image import upload_image
+from push_to_sheet import push_if_new
 
 import time
 import os
 
 
-# -----------------------------
-# MAIN PIPELINE
-# -----------------------------
 def run():
-    print("\n=== SPORTS AGENT START ===\n")
+    print("\n=== START ===\n")
 
-    # Step 1: Fetch news
     articles = fetch_news()
 
     if not articles:
-        print("No articles found")
+        print("No news found")
         return
 
-    print(f"Fetched {len(articles)} articles")
-
-    # Step 2: Rank news
     articles = rank_news(articles)
 
-    print(f"Processing top {len(articles)} articles\n")
+    print("Articles:", len(articles))
 
-    # Step 3: Process each article
     for i, article in enumerate(articles):
         try:
-            print(f"\nProcessing {i+1}/{len(articles)}")
+            print("\n----------------------")
+            print(f"Processing {i+1}/{len(articles)}")
 
             title = article.get("title", "")
             summary = article.get("summary", "")
             category = article.get("category", "")
-            link = article.get("link", "")
 
             print("Title:", title)
 
             # -----------------------------
-            # Step 4: Generate caption
+            # CAPTION
             # -----------------------------
             caption = generate_caption(title, summary, category)
 
             if not caption:
-                print("Skipping (no caption)")
+                print("No caption")
                 continue
 
             # -----------------------------
-            # Step 5: Get image
+            # IMAGE SEARCH
             # -----------------------------
-            image_url = get_image(title + " " + category)
+            image_url = get_image(title, category)
 
             if not image_url:
-                print("Skipping (no image)")
+                print("No image")
                 continue
 
             # -----------------------------
-            # Step 6: Create post image
+            # CREATE POST IMAGE
             # -----------------------------
             filename = f"posts/post_{int(time.time())}.jpg"
 
-            create_post(image_url, caption, filename)
+            post_path = create_post(
+                image_url,
+                title,
+                caption,
+                filename
+            )
+
+            if not post_path:
+                print("Create post failed")
+                continue
+
+            print("File exists:", os.path.exists(post_path))
 
             # -----------------------------
-            # Step 7: Upload image (Cloudinary)
+            # UPLOAD (Cloudinary)
             # -----------------------------
-            uploaded_url = upload_image(filename)
+            uploaded_url = upload_image(post_path)
 
             if not uploaded_url:
-                print("Skipping (upload failed)")
+                print("Upload failed")
                 continue
 
             # -----------------------------
-            # Step 8: Save to Google Sheets
+            # SAVE TO SHEET
             # -----------------------------
             timestamp = int(time.time())
 
@@ -87,11 +90,10 @@ def run():
                 caption,
                 uploaded_url,
                 "PENDING",
-                timestamp,
-                link
+                timestamp
             ]
 
-            push_if_new(row)
+            push_if_new(article, caption, uploaded_url)
 
             print("Done")
 
@@ -101,8 +103,5 @@ def run():
     print("\n=== DONE ===\n")
 
 
-# -----------------------------
-# RUN DIRECTLY
-# -----------------------------
 if __name__ == "__main__":
     run()
