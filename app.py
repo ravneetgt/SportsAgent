@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import os
 
 # -----------------------------
 # CONFIG
@@ -75,16 +76,13 @@ def update_caption(sheet_row, caption):
 
 
 # -----------------------------
-# RUN PIPELINE (FIXED)
+# RUN PIPELINE
 # -----------------------------
 def run_pipeline():
     try:
         from main import run
-
         run()
-
         return "Pipeline executed successfully"
-
     except Exception as e:
         return str(e)
 
@@ -97,22 +95,19 @@ st.set_page_config(page_title="Sports Dashboard", layout="wide")
 st.title("Sports Content Dashboard")
 
 # -----------------------------
-# TOP BUTTONS
+# BUTTONS
 # -----------------------------
 colA, colB = st.columns(2)
 
-# Refresh button
 if colA.button("Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# Fetch new news button
 if colB.button("Fetch New News"):
     with st.spinner("Fetching latest news..."):
         output = run_pipeline()
 
     st.success("Fetch complete")
-
     st.code(output)
 
     st.cache_data.clear()
@@ -200,10 +195,27 @@ for row in filtered:
 
     col1, col2 = st.columns([2, 3])
 
+    # -----------------------------
+    # IMAGE HANDLING (FIXED)
+    # -----------------------------
     with col1:
         if image_url:
-            st.image(image_url, use_container_width=True)
+            # Case 1: Local file
+            if os.path.exists(image_url):
+                st.image(image_url, use_container_width=True)
 
+            # Case 2: URL
+            elif image_url.startswith("http"):
+                st.image(image_url, use_container_width=True)
+
+            else:
+                st.write("Image not accessible")
+        else:
+            st.write("No image")
+
+    # -----------------------------
+    # DETAILS
+    # -----------------------------
     with col2:
         st.write("Category:", category)
         st.write("Status:", status)
