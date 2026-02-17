@@ -1,112 +1,146 @@
 from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
+import textwrap
+import time
 import os
 
+
+# -----------------------------
+# CONFIG
+# -----------------------------
 WIDTH = 1080
 HEIGHT = 1350
 
-LOGO_PATH = "assets/logo.png"
+LOGO_PATH = "assets/logo.png"  # your logo file
 
 
-def download_image(url):
+# -----------------------------
+# HELPERS
+# -----------------------------
+def load_font(size):
     try:
-        res = requests.get(url, timeout=10)
-        return Image.open(BytesIO(res.content)).convert("RGB")
+        return ImageFont.truetype("Helvetica.ttf", size)
     except:
-        return Image.new("RGB", (WIDTH, HEIGHT), "black")
+        return ImageFont.load_default()
 
 
-def resize_crop(img):
-    img = img.resize((WIDTH, HEIGHT))
-    return img
+def wrap_text(text, font, max_width, draw):
+    lines = []
+    words = text.split()
+
+    current_line = ""
+
+    for word in words:
+        test_line = current_line + " " + word if current_line else word
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        width = bbox[2] - bbox[0]
+
+        if width <= max_width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
 
 
-def add_overlay(img):
-    overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 120))
-    return Image.alpha_composite(img.convert("RGBA"), overlay)
-
-
-def create_post(image_url, title, caption, filename):
+# -----------------------------
+# MAIN FUNCTION
+# -----------------------------
+def create_post(title, caption, image_url):
     try:
         # -----------------------------
         # LOAD IMAGE
         # -----------------------------
-        img = download_image(image_url)
-        img = resize_crop(img)
-        img = add_overlay(img)
+        response = requests.get(image_url, timeout=10)
+        img = Image.open(BytesIO(response.content)).convert("RGBA")
 
+        # resize + crop to fit
+        img = img.resize((WIDTH, HEIGHT))
+
+        # -----------------------------
+        # DARK OVERLAY
+        # -----------------------------
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 120))
+        img = Image.alpha_composite(img, overlay)
+
+        # -----------------------------
+        # DRAW SETUP
+        # -----------------------------
         draw = ImageDraw.Draw(img)
 
-        # -----------------------------
-        # FONTS
-        # -----------------------------
-        try:
-            title_font = ImageFont.truetype("Arial.ttf", 60)
-            caption_font = ImageFont.truetype("Arial.ttf", 38)
-            brand_font = ImageFont.truetype("Arial.ttf", 30)
-        except:
-            title_font = ImageFont.load_default()
-            caption_font = ImageFont.load_default()
-            brand_font = ImageFont.load_default()
+        title_font = load_font(64)
+        caption_font = load_font(40)
+        brand_font = load_font(40)
+
+        padding = 60
+        max_width = WIDTH - (padding * 2)
 
         # -----------------------------
-        # TEXT POSITION
+        # WRAP TEXT
         # -----------------------------
-        x = 60
-        y = HEIGHT - 400
+        title_lines = wrap_text(title, title_font, max_width, draw)
+        caption_lines = wrap_text(caption, caption_font, max_width, draw)
 
-        # TITLE (shortened)
-        title_text = title.split("-")[0][:80]
-        draw.text((x, y), title_text, fill="white", font=title_font)
-        y += 80
+        # -----------------------------
+        # DRAW TITLE
+        # -----------------------------
+        y = HEIGHT - 500
 
-        # CAPTION (3 lines)
-        for line in caption.split("\n")[:3]:
-            draw.text((x, y), line, fill="white", font=caption_font)
+        for line in title_lines:
+            draw.text((padding, y), line, font=title_font, fill="white")
+            y += 70
+
+        y += 20
+
+        # -----------------------------
+        # DRAW CAPTION
+        # -----------------------------
+        for line in caption_lines:
+            draw.text((padding, y), line, font=caption_font, fill=(230, 230, 230))
             y += 50
 
         # -----------------------------
-        # LOGO (top-left)
+        # LOGO (TOP LEFT)
         # -----------------------------
         if os.path.exists(LOGO_PATH):
             logo = Image.open(LOGO_PATH).convert("RGBA")
             logo = logo.resize((120, 120))
-            logo.putalpha(120)
+
+            # make watermark lighter
+            alpha = logo.split()[3]
+            alpha = alpha.point(lambda p: int(p * 0.5))
+            logo.putalpha(alpha)
+
             img.paste(logo, (40, 40), logo)
 
         # -----------------------------
-        # WORDMARK (top-right)
+        # WORDMARK (UNDER LOGO)
         # -----------------------------
-        draw.text(
-            (WIDTH - 260, 50),
-            "GAMETRAIT",
-            fill=(255, 255, 255),
-            font=brand_font
-        )
+        draw.text((40, 180), "GAMETRAIT", font=brand_font, fill=(255, 255, 255, 180))
+
+        # -----------------------------
+        # CONVERT TO RGB (FIX)
+        # -----------------------------
+        img = img.convert("RGB")
 
         # -----------------------------
         # SAVE
         # -----------------------------
+        filename = f"posts/post_{int(time.time())}.jpg"
+
         os.makedirs("posts", exist_ok=True)
 
-        img = img.convert("RGB")
-        img.save(filename, quality=95)
+        img.save(filename, "JPEG", quality=95)
 
         print("Saved:", filename)
 
         return filename
 
     except Exception as e:
-        print("create_post error:", e)
+        print("ERROR create_post:", e)
         return None
-
-
-# test
-if __name__ == "__main__":
-    create_post(
-        "https://images.pexels.com/photos/274506/pexels-photo-274506.jpeg",
-        "India beats Australia in thriller",
-        "India held nerve under pressure\nExecution was precise\nAustralia fell short",
-        "posts/test.jpg"
-    )

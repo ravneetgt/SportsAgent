@@ -28,11 +28,15 @@ def run():
             print("\n----------------------")
             print(f"Processing {i+1}/{len(articles)}")
 
-            title = article.get("title", "")
-            summary = article.get("summary", "")
-            category = article.get("category", "")
+            title = article.get("title", "").strip()
+            summary = article.get("summary", "").strip()
+            category = article.get("category", "").strip()
 
             print("Title:", title)
+
+            if not title:
+                print("Skipping empty title")
+                continue
 
             # -----------------------------
             # CAPTION
@@ -55,13 +59,10 @@ def run():
             # -----------------------------
             # CREATE POST IMAGE
             # -----------------------------
-            filename = f"posts/post_{int(time.time())}.jpg"
-
             post_path = create_post(
-                image_url,
                 title,
                 caption,
-                filename
+                image_url
             )
 
             if not post_path:
@@ -79,21 +80,20 @@ def run():
                 print("Upload failed")
                 continue
 
+            print("UPLOADED:", uploaded_url)
+
             # -----------------------------
             # SAVE TO SHEET
             # -----------------------------
             timestamp = int(time.time())
 
-            row = [
+            push_if_new(
                 category,
                 title,
                 caption,
                 uploaded_url,
-                "PENDING",
                 timestamp
-            ]
-
-            push_if_new(article, caption, uploaded_url)
+            )
 
             print("Done")
 
