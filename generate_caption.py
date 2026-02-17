@@ -9,39 +9,23 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def generate_caption(title, summary, category, style="general"):
     prompt = f"""
-You are the voice of a fast-growing sports Instagram page.
+You are writing for a sports page.
 
-STYLE: {style}
+SPORT: {category}
 
-GOAL:
-Make people stop scrolling and react.
+Write a sharp 3-line caption.
 
-GLOBAL RULES:
-- 3 lines only
-- Each line on a new line
-- First line must be sharp and slightly provocative (max 8 words)
-- Second line adds context
-- Third line adds tension, doubt, or a strong opinion
-- No clichés like "great match" or "statement win"
-- No emojis
-- No hashtags
-- Avoid neutral analysis
+STRICT RULES:
+- Must stay within the sport context
+- Must reference the teams/players in the title
+- No generic or unrelated commentary
+- No crossover (cricket vs football etc.)
+- Avoid clichés
 
-STYLE RULES:
-
-analytical_india:
-- Focus on pressure, mistakes, and key turning points
-- Slightly critical tone
-- India-centric perspective
-- Highlight weaknesses, not just success
-
-transfer_drama:
-- Focus on uncertainty, decline, or big changes
-- Slightly dramatic but controlled
-- Emphasise what's at stake
-
-OUTPUT STYLE:
-Short, sharp, and opinionated. Not safe.
+STYLE:
+- Insightful
+- Slightly critical
+- Observational
 
 NEWS:
 Title: {title}

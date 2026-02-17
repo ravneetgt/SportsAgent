@@ -1,89 +1,99 @@
 from fetch_news import fetch_news
 from generate_caption import generate_caption
-from create_post import create_post
-from push_to_sheet import push_if_new
-from rank_news import rank_news
+from get_image import get_image
+
+import re
 
 
-def get_style(category):
-    if category == "cricket":
-        return "analytical_india"
-    elif category == "football":
-        return "transfer_drama"
+# -----------------------------
+# EXTRACT KEY ENTITIES
+# -----------------------------
+def extract_entities(title):
+    words = re.findall(r'\b[A-Z][a-zA-Z]+\b', title)
+    return " ".join(words[:3])
+
+
+# -----------------------------
+# BUILD IMAGE QUERY
+# -----------------------------
+def build_image_query(article):
+    title = article["title"]
+    category = article["category"]
+
+    entities = extract_entities(title)
+
+    if category == "football":
+        return f"{entities} football match stadium players"
+
+    elif category == "cricket":
+        return f"{entities} cricket match batsman bowler"
+
     elif category == "tennis":
-        return "elite_rivalry"
+        return f"{entities} tennis match player court"
+
     elif category == "f1":
-        return "precision_drama"
-    return "general"
+        return f"{entities} formula 1 race car"
+
+    return f"{entities} {category}"
 
 
+# -----------------------------
+# MAIN PIPELINE
+# -----------------------------
 def run():
-    print("RUNNING MAIN...")
+    print("\nRUNNING MAIN...")
 
-    # Step 1: Fetch news
     news = fetch_news()
-    print("Articles fetched:", len(news))
 
-    if len(news) == 0:
-        print("No articles returned.")
+    if not news:
+        print("No articles found.")
         return
 
-    # Step 2: Rank and select top articles
-    news = rank_news(news, top_n=6)
-    print("Top articles selected:", len(news))
+    print("Articles found:", len(news))
 
-    added = 0
+    for article in news:
+        print("\n========================")
 
-    # Step 3: Process each article
-    for index, article in enumerate(news):
         try:
-            category = article.get("category")
-            title = article.get("title")
-            summary = article.get("summary")
+            # Extract data
+            title = article["title"]
+            summary = article["summary"]
+            category = article["category"]
 
-            print("\n----------------------")
+            # Debug
             print("CATEGORY:", category)
             print("TITLE:", title)
 
-            # Step 4: Generate caption
-            style = get_style(category)
-
+            # -----------------------------
+            # CAPTION
+            # -----------------------------
             caption = generate_caption(
                 title,
                 summary,
-                category,
-                style
+                category
             )
 
-            print("CAPTION:\n", caption)
+            # -----------------------------
+            # IMAGE
+            # -----------------------------
+            query = build_image_query(article)
+            image_url = get_image(query)
 
-            # Step 5: Create branded image
-            image_path = create_post(
-                title,
-                caption,
-                category,
-                index
-            )
+            # -----------------------------
+            # OUTPUT
+            # -----------------------------
+            print("\nCAPTION:\n", caption)
 
-            print("IMAGE CREATED:", image_path)
-
-            # Step 6: Push to Google Sheet
-            row = [
-                category,
-                title,
-                caption,
-                image_path,
-                "PENDING"
-            ]
-
-            if push_if_new(row):
-                added += 1
+            print("\nIMAGE QUERY:", query)
+            print("IMAGE URL:", image_url)
 
         except Exception as e:
-            print("ERROR processing article:", e)
+            print("ERROR:", e)
+            continue
 
-    print("\nNew rows added:", added)
 
-
+# -----------------------------
+# RUN
+# -----------------------------
 if __name__ == "__main__":
     run()
