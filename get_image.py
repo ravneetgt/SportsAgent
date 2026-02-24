@@ -12,30 +12,31 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # -----------------------------
-# GPT QUERY GENERATOR
+# GPT QUERY GENERATOR (IMPROVED)
 # -----------------------------
 def generate_image_query(title, category):
     try:
         prompt = f"""
-Generate a realistic sports photography search query.
+Generate a realistic editorial sports photography search query.
 
 SPORT: {category}
 
 RULES:
-- Focus on action shot
-- Include match context or player type
-- Avoid generic words like "news"
-- 5 to 8 words only
+- Must look like a real sports photograph
+- Prefer player action, stadium, or match moment
+- Avoid generic words like "news" or "sports"
+- Avoid words like "illustration" or "graphic"
+- 6 to 8 words
 
 TITLE: {title}
 
-Return ONLY the search query.
+Return ONLY the query.
 """
 
         res = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4
+            temperature=0.5
         )
 
         query = res.choices[0].message.content.strip()
@@ -57,7 +58,7 @@ def search_pexels(query):
 
     params = {
         "query": query,
-        "per_page": 5,
+        "per_page": 10,
         "orientation": "portrait"
     }
 
@@ -72,6 +73,23 @@ def search_pexels(query):
 
 
 # -----------------------------
+# PICK BEST IMAGE
+# -----------------------------
+def pick_best_photo(photos):
+    if not photos:
+        return None
+
+    # Prefer larger / high-quality images
+    sorted_photos = sorted(
+        photos,
+        key=lambda p: p.get("width", 0),
+        reverse=True
+    )
+
+    return sorted_photos[0]
+
+
+# -----------------------------
 # GET IMAGE
 # -----------------------------
 def get_image(title, category):
@@ -81,41 +99,49 @@ def get_image(title, category):
 
     try:
         # -----------------------------
-        # 1. SMART QUERY
+        # 1. GPT QUERY
         # -----------------------------
         query = generate_image_query(title, category)
 
         photos = search_pexels(query)
 
         # -----------------------------
-        # 2. FALLBACKS
+        # 2. CATEGORY FALLBACK
         # -----------------------------
         if not photos:
-            print("Fallback 1")
+            print("Fallback category")
 
             fallback_queries = {
-                "cricket": "cricket match action stadium",
-                "football": "football match action stadium",
-                "tennis": "tennis match player action",
-                "f1": "formula 1 race car track"
+                "football": [
+                    "football match action stadium players",
+                    "soccer goal celebration crowd stadium",
+                    "football players tackling match action"
+                ]
             }
 
-            fallback = fallback_queries.get(category, "sports action")
+            for q in fallback_queries.get(category, []):
+                photos = search_pexels(q)
+                if photos:
+                    break
 
-            photos = search_pexels(fallback)
-
+        # -----------------------------
+        # 3. GENERIC FALLBACK
+        # -----------------------------
         if not photos:
-            print("Fallback 2 generic")
-            photos = search_pexels("sports action")
+            print("Fallback generic")
+            photos = search_pexels("football match stadium crowd")
 
         if not photos:
             print("No images found")
             return None
 
         # -----------------------------
-        # 3. RETURN BEST IMAGE
+        # 4. PICK BEST
         # -----------------------------
-        best = photos[0]
+        best = pick_best_photo(photos)
+
+        if not best:
+            return None
 
         return best["src"]["large"]
 
@@ -128,4 +154,4 @@ def get_image(title, category):
 # TEST
 # -----------------------------
 if __name__ == "__main__":
-    print(get_image("India vs Australia thriller", "cricket"))
+    print(get_image("Manchester United vs Arsenal preview", "football"))

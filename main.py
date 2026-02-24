@@ -31,22 +31,29 @@ def run():
             title = article.get("title", "")
             summary = article.get("summary", "")
             category = article.get("category", "")
+            query = article.get("query", title)   # ✅ IMPORTANT
+            context = article.get("context", "general")
 
             print("Title:", title)
 
             # -----------------------------
             # CAPTION
             # -----------------------------
-            caption = generate_caption(title, summary, category)
+            caption = generate_caption(
+                title,
+                summary,
+                category,
+                context   # ✅ now using context
+            )
 
             if not caption:
                 print("No caption")
                 continue
 
             # -----------------------------
-            # IMAGE SEARCH
+            # IMAGE SEARCH (IMPROVED)
             # -----------------------------
-            image_url = get_image(title, category)
+            image_url = get_image(query, category)   # ✅ FIXED
 
             if not image_url:
                 print("No image")
@@ -97,7 +104,7 @@ def run():
 
             push_if_new(row)
 
-            print("Done")
+            print("Saved to sheet")
 
         except Exception as e:
             print("ERROR:", e)

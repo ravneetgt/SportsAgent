@@ -7,25 +7,34 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-def generate_caption(title, summary, category, style="general"):
+def generate_caption(title, summary, category, style="insider"):
     prompt = f"""
-You are writing for a sports page.
+You are writing for a sharp football page.
 
 SPORT: {category}
 
-Write a sharp 3-line caption.
-
-STRICT RULES:
-- Must stay within the sport context
-- Must reference the teams/players in the title
-- No generic or unrelated commentary
-- No crossover (cricket vs football etc.)
-- Avoid clichés
-
-STYLE:
-- Insightful
+Your voice:
+- Insider analysis
+- Observational, not emotional
 - Slightly critical
-- Observational
+- Confident tone
+- No clichés
+
+Write a 3-line caption.
+
+RULES:
+- Each line on a new line
+- First line under 8 words
+- Mention teams/players from title
+- No generic statements
+- No hashtags
+- No emojis
+
+EXTRA:
+- If it is a match preview, predict what could happen
+- If it is a result, explain WHY it happened
+- If it is a transfer, question the logic or impact
+- Add a subtle opinion or edge
 
 NEWS:
 Title: {title}
@@ -35,19 +44,20 @@ Summary: {summary}
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.8
+        temperature=0.9
     )
 
     return response.choices[0].message.content.strip()
 
 
-# test
+# -----------------------------
+# TEST
+# -----------------------------
 if __name__ == "__main__":
     caption = generate_caption(
-    "India wins thriller against Australia",
-    "India chased down 280 in a last-over finish.",
-    "cricket",
-    "analytical_india"
+        "Manchester City vs Arsenal preview",
+        "City host Arsenal in a top-of-the-table clash.",
+        "football"
     )
 
     print(caption)

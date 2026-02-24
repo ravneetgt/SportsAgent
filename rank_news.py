@@ -1,62 +1,105 @@
 def score_article(article):
     title = article.get("title", "").lower()
+    summary = article.get("summary", "").lower()
     category = article.get("category", "")
+    context = article.get("context", "general")
 
     score = 0
 
-    # global high-interest keywords
+    # -----------------------------
+    # HIGH-INTEREST (VIRAL)
+    # -----------------------------
     high = [
-        "final", "semi final", "world cup", "grand slam",
-        "champions league", "derby", "record", "controversy"
+        "final", "semi final", "champions league",
+        "derby", "el clasico", "title race",
+        "controversy", "ban", "sacked",
+        "injury", "red card", "penalty"
     ]
 
-    # medium importance
-    medium = [
-        "win", "loss", "defeat", "injury",
-        "transfer", "goal", "century"
+    # -----------------------------
+    # MATCH OUTCOMES
+    # -----------------------------
+    results = [
+        "win", "beat", "defeat", "draw",
+        "loss", "thrash", "comeback"
     ]
 
-    # star power (cross-sport)
-    stars = [
-        "india", "pakistan",
+    # -----------------------------
+    # TRANSFER / DRAMA
+    # -----------------------------
+    transfers = [
+        "transfer", "bid", "deal", "contract",
+        "sign", "exit", "interest", "linked"
+    ]
+
+    # -----------------------------
+    # BIG CLUBS / STARS
+    # -----------------------------
+    clubs = [
         "real madrid", "barcelona", "manchester united",
-        "djokovic", "nadal", "alcaraz",
-        "verstappen", "hamilton"
+        "man city", "arsenal", "chelsea", "liverpool",
+        "psg", "bayern"
     ]
 
-    # scoring rules
+    players = [
+        "messi", "ronaldo", "mbappe", "haaland",
+        "bellingham", "salah", "de bruyne"
+    ]
+
+    # -----------------------------
+    # SCORING RULES
+    # -----------------------------
     for k in high:
         if k in title:
             score += 5
 
-    for k in medium:
-        if k in title:
-            score += 2
-
-    for k in stars:
+    for k in results:
         if k in title:
             score += 3
 
-    # category boost
-    if category == "cricket":
-        score += 2   # India engagement
-    elif category == "football":
-        score += 2   # global engagement
-    elif category == "f1":
-        score += 1
-    elif category == "tennis":
-        score += 1
+    for k in transfers:
+        if k in title:
+            score += 4
+
+    for k in clubs:
+        if k in title:
+            score += 4
+
+    for k in players:
+        if k in title:
+            score += 3
+
+    # -----------------------------
+    # CONTEXT BOOST
+    # -----------------------------
+    if context == "preview":
+        score += 2  # upcoming match interest
+
+    elif context == "result":
+        score += 3  # match results perform well
+
+    elif context == "transfer":
+        score += 4  # transfers are highly engaging
+
+    # -----------------------------
+    # SUMMARY SIGNAL
+    # -----------------------------
+    if any(k in summary for k in ["controversy", "drama", "tension"]):
+        score += 3
+
+    # -----------------------------
+    # BASE CATEGORY BOOST
+    # -----------------------------
+    if category == "football":
+        score += 2
 
     return score
 
 
 def rank_news(articles, top_n=8):
-    # attach scores
     for a in articles:
         a["score"] = score_article(a)
 
-    # sort descending
     ranked = sorted(articles, key=lambda x: x["score"], reverse=True)
 
-    # return top N
     return ranked[:top_n]
