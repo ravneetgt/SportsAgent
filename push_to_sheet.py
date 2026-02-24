@@ -1,12 +1,10 @@
 import gspread
+import time
 from oauth2client.service_account import ServiceAccountCredentials
 
 SHEET_NAME = "Sports AI Content"
 
 
-# -----------------------------
-# CONNECT TO SHEET
-# -----------------------------
 def get_sheet():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -18,41 +16,53 @@ def get_sheet():
     )
 
     client = gspread.authorize(creds)
-    return client.open(SHEET_NAME).sheet1
 
+    spreadsheet = client.open_by_key("1eQwoa3etxf3g82jZop50lt598NJRCZ2bHRUUMQDsSOw")
+    sheet = spreadsheet.sheet1
 
-# -----------------------------
-# GET EXISTING TITLES (DEDUP)
-# -----------------------------
-def existing_titles(sheet):
-    try:
-        values = sheet.col_values(2)  # Column B = Title
-        return set(v.strip() for v in values if v)
-    except Exception as e:
-        print("Error reading titles:", e)
-        return set()
+    print("SPREADSHEET:", spreadsheet.title)
+    print("WORKSHEET:", sheet.title)
 
+    return sheet
 
-# -----------------------------
-# PUSH ROW IF NEW
-# -----------------------------
 def push_if_new(row):
     try:
         sheet = get_sheet()
 
-        titles = existing_titles(sheet)
+        # -----------------------------
+        # DUPLICATE CHECK
+        # -----------------------------
+        titles = sheet.col_values(3)
 
-        title = str(row[1]).strip()
-
-        if title in titles:
-            print("SKIP (duplicate):", title[:60])
+        if row.get("Title") in titles:
+            print("SKIP:", row.get("Title")[:60])
             return False
 
-        sheet.append_row(row)
-        print("ADDED:", title[:60])
+        # -----------------------------
+        # BUILD ROW
+        # -----------------------------
+        values = [
+            row.get("Type", ""),
+            row.get("Category", ""),
+            row.get("Title", ""),
+            row.get("Short Caption", ""),
+            row.get("Long Caption", ""),
+            row.get("Article", ""),
+            row.get("Image URL", ""),
+            row.get("Status", "PENDING"),
+            row.get("Context", ""),
+            row.get("Score", 0),
+            row.get("Date", int(time.time()))
+        ]
+
+        print("ADDING:", row.get("Title")[:60])
+
+        sheet.append_row(values, table_range="A1:K1")
+
+        print("ADDED SUCCESSFULLY")
 
         return True
 
     except Exception as e:
-        print("Sheet push error:", e)
+        print("Sheet push error:", str(e))
         return False

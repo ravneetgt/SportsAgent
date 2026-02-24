@@ -1,115 +1,95 @@
+import time
+
 from fetch_news import fetch_news
+from fetch_fixtures import fetch_fixtures
 from rank_news import rank_news
-from generate_caption import generate_caption
+from generate_caption import generate_content
 from get_image import get_image
 from create_post import create_post
-from upload_image import upload_image
 from push_to_sheet import push_if_new
-
-import time
-import os
 
 
 def run():
-    print("\n=== START ===\n")
+    print("=== START ===")
 
-    articles = fetch_news()
+    news = fetch_news()
 
-    if not articles:
-        print("No news found")
+    if not news:
+        print("No news")
         return
 
-    articles = rank_news(articles)
+    ranked = rank_news(news)
 
-    print("Articles:", len(articles))
+    for article in ranked[:8]:
 
-    for i, article in enumerate(articles):
         try:
-            print("\n----------------------")
-            print(f"Processing {i+1}/{len(articles)}")
-
-            title = article.get("title", "")
+            title = article["title"]
             summary = article.get("summary", "")
-            category = article.get("category", "")
-            query = article.get("query", title)   # ✅ IMPORTANT
-            context = article.get("context", "general")
+            category = article.get("category", "football")
+            context = article.get("context", "news")
+            score = article.get("score", 0)
 
-            print("Title:", title)
+            print("Processing:", title)
 
-            # -----------------------------
-            # CAPTION
-            # -----------------------------
-            caption = generate_caption(
-                title,
-                summary,
-                category,
-                context   # ✅ now using context
+            content = generate_content(
+                title=title,
+                summary=summary,
+                category=category,
+                context=context
             )
 
-            if not caption:
-                print("No caption")
-                continue
+            short_caption = content.get("short_caption", "")
+            long_caption = content.get("long_caption", "")
+            article_text = content.get("article", "")
 
-            # -----------------------------
-            # IMAGE SEARCH (IMPROVED)
-            # -----------------------------
-            image_url = get_image(query, category)   # ✅ FIXED
+            image_url = get_image(title)
 
             if not image_url:
-                print("No image")
                 continue
 
-            # -----------------------------
-            # CREATE POST IMAGE
-            # -----------------------------
-            filename = f"posts/post_{int(time.time())}.jpg"
+            try:
+                final_image_url = create_post(
+                    image_url=image_url,
+                    title=title,
+                    caption=short_caption
+                )
+            except Exception as e:
+                print("Image error:", e)
+                final_image_url = image_url
 
-            post_path = create_post(
-                image_url,
-                title,
-                caption,
-                filename
-            )
+            push_if_new({
+                "Type": "instagram",
+                "Category": category,
+                "Title": title,
+                "Short Caption": short_caption,
+                "Long Caption": long_caption,
+                "Article": "",
+                "Image URL": final_image_url,
+                "Status": "PENDING",
+                "Context": context,
+                "Score": score,
+                "Date": int(time.time())
+            })
 
-            if not post_path:
-                print("Create post failed")
-                continue
+            push_if_new({
+                "Type": "article",
+                "Category": category,
+                "Title": title,
+                "Short Caption": short_caption,
+                "Long Caption": long_caption,
+                "Article": article_text,
+                "Image URL": image_url,
+                "Status": "PENDING",
+                "Context": context,
+                "Score": score,
+                "Date": int(time.time())
+            })
 
-            print("File exists:", os.path.exists(post_path))
-
-            # -----------------------------
-            # UPLOAD
-            # -----------------------------
-            uploaded_url = upload_image(post_path)
-
-            if not uploaded_url:
-                print("Upload failed")
-                continue
-
-            print("UPLOADED:", uploaded_url)
-
-            # -----------------------------
-            # SAVE TO SHEET
-            # -----------------------------
-            timestamp = int(time.time())
-
-            row = [
-                category,
-                title,
-                caption,
-                uploaded_url,
-                "PENDING",
-                timestamp
-            ]
-
-            push_if_new(row)
-
-            print("Saved to sheet")
+            print("✓ Done")
 
         except Exception as e:
-            print("ERROR:", e)
-
-    print("\n=== DONE ===\n")
+            print("ERROR TYPE:", type(e))
+            print("ERROR VALUE:", str(e))
 
 
 if __name__ == "__main__":

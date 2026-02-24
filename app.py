@@ -1,252 +1,246 @@
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
-
+import pandas as pd
+from push_to_sheet import get_sheet
 
 # -----------------------------
 # CONFIG
 # -----------------------------
-SHEET_NAME = "Sports AI Content"
-
-COL_CATEGORY = "Category"
-COL_TITLE = "Title"
-COL_CAPTION = "Caption"
-COL_IMAGE = "Image URL"
-COL_STATUS = "Status"
-COL_DATE = "Date"
-
-
-# -----------------------------
-# GOOGLE SHEETS
-# -----------------------------
-def get_sheet():
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    creds_dict = dict(st.secrets["gcp_service_account"])
-
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        creds_dict, scope
-    )
-
-    client = gspread.authorize(creds)
-    return client.open(SHEET_NAME).sheet1
-
+HEADERS = [
+    "Type",
+    "Category",
+    "Title",
+    "Short Caption",
+    "Long Caption",
+    "Article",
+    "Image URL",
+    "Status",
+    "Context",
+    "Score",
+    "Date"
+]
 
 # -----------------------------
-# LOAD DATA
+# HELPERS
 # -----------------------------
+def is_valid_url(url):
+    return isinstance(url, str) and url.startswith("http")
+
+
+def safe_load_sheet():
+    try:
+        sheet = get_sheet()
+        values = sheet.get_all_values()
+
+        if not values or len(values) < 2:
+            return pd.DataFrame(columns=HEADERS)
+
+        header = values[0]
+        data = values[1:]
+
+        df = pd.DataFrame(data, columns=header)
+
+        # Ensure all columns exist
+        for col in HEADERS:
+            if col not in df.columns:
+                df[col] = ""
+
+        return df
+
+    except Exception as e:
+        st.error(f"Sheet error: {str(e)}")
+        return pd.DataFrame(columns=HEADERS)
+
+
 @st.cache_data(ttl=30)
 def load_data():
+    df = safe_load_sheet()
+
+    if df.empty:
+        return df
+
+    # Convert date safely
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+
+    return df
+
+
+def update_status(row_idx, status):
     sheet = get_sheet()
-    raw = sheet.get_all_records()
+    sheet.update_cell(row_idx, 8, status)  # Status column
 
-    data = []
 
-    for i, row in enumerate(raw):
-        row["_row"] = i + 2
-
-        # ---------- FIX TIMESTAMP ----------
-        ts = row.get(COL_DATE)
-
-        try:
-            ts = int(float(ts))
-            dt = datetime.fromtimestamp(ts)
-
-            row["_date_obj"] = dt
-            row["_date_str"] = dt.strftime("%d %b %Y")       # e.g. 17 Feb 2026
-            row["_time_str"] = dt.strftime("%I:%M %p")       # e.g. 03:45 PM
-            row["_datetime_str"] = dt.strftime("%d %b %Y, %I:%M %p")
-
-        except:
-            row["_date_obj"] = None
-            row["_date_str"] = "N/A"
-            row["_time_str"] = ""
-            row["_datetime_str"] = "N/A"
-
-        data.append(row)
-
-    return data
+def update_caption(row_idx, caption):
+    sheet = get_sheet()
+    sheet.update_cell(row_idx, 4, caption)  # Short Caption
 
 
 # -----------------------------
-# UPDATE FUNCTIONS
+# UI CONFIG
 # -----------------------------
-def update_status(sheet_row, status):
-    try:
-        sheet = get_sheet()
-        header = sheet.row_values(1)
-        col_index = header.index(COL_STATUS) + 1
-        sheet.update_cell(sheet_row, col_index, status)
-    except Exception as e:
-        st.error(f"Update failed: {e}")
-
-
-def update_caption(sheet_row, caption):
-    try:
-        sheet = get_sheet()
-        header = sheet.row_values(1)
-        col_index = header.index(COL_CAPTION) + 1
-        sheet.update_cell(sheet_row, col_index, caption)
-    except Exception as e:
-        st.error(f"Caption update failed: {e}")
-
-
-# -----------------------------
-# RUN PIPELINE
-# -----------------------------
-def run_pipeline():
-    try:
-        from main import run
-        run()
-        return "Pipeline executed successfully"
-    except Exception as e:
-        return str(e)
-
-
-# -----------------------------
-# UI
-# -----------------------------
-st.set_page_config(page_title="Gametrait Sports Dashboard", layout="wide")
-
+st.set_page_config(layout="wide")
 st.title("Gametrait Sports Content Dashboard")
-
-
-# -----------------------------
-# TOP BUTTONS
-# -----------------------------
-colA, colB = st.columns(2)
-
-if colA.button("Refresh Data"):
-    st.cache_data.clear()
-    st.rerun()
-
-if colB.button("Fetch New News"):
-    with st.spinner("Fetching latest news..."):
-        output = run_pipeline()
-
-    st.success("Fetch complete")
-    st.code(output)
-
-    st.cache_data.clear()
-    st.rerun()
-
 
 # -----------------------------
 # LOAD DATA
 # -----------------------------
-data = load_data()
+df = load_data()
 
-if not data:
-    st.warning("No data")
+if df.empty:
+    st.warning("No data found")
     st.stop()
 
+# Add row index (important for updates)
+df["_row"] = df.index + 2  # offset header
 
 # -----------------------------
-# FILTER OPTIONS
+# SIDEBAR FILTERS
 # -----------------------------
-statuses = sorted(list(set([str(r.get(COL_STATUS, "")) for r in data])))
-categories = sorted(list(set([str(r.get(COL_CATEGORY, "")) for r in data])))
+with st.sidebar:
+    st.header("Filters")
 
-dates = sorted(
-    list(set([r["_date_str"] for r in data if r["_date_str"] != "N/A"]))
-)
+    status_filter = st.selectbox(
+        "Status",
+        ["ALL"] + sorted(df["Status"].dropna().unique().tolist())
+    )
 
-st.sidebar.header("Filters")
+    category_filter = st.selectbox(
+        "Sport",
+        ["ALL"] + sorted(df["Category"].dropna().unique().tolist())
+    )
 
-selected_status = st.sidebar.selectbox("Status", ["ALL"] + statuses)
-selected_category = st.sidebar.selectbox("Sport", ["ALL"] + categories)
-selected_date = st.sidebar.selectbox("Date", ["ALL"] + dates)
+    type_filter = st.selectbox(
+        "Type",
+        ["ALL"] + sorted(df["Type"].dropna().unique().tolist())
+    )
 
-only_pending = st.sidebar.checkbox("Only Pending", value=False)
-
+    only_pending = st.checkbox("Only Pending")
 
 # -----------------------------
-# FILTER LOGIC
+# APPLY FILTERS
 # -----------------------------
-filtered = data
+filtered = df.copy()
 
-if selected_status != "ALL":
-    filtered = [r for r in filtered if str(r.get(COL_STATUS, "")) == selected_status]
+if status_filter != "ALL":
+    filtered = filtered[filtered["Status"] == status_filter]
 
-if selected_category != "ALL":
-    filtered = [r for r in filtered if str(r.get(COL_CATEGORY, "")) == selected_category]
+if category_filter != "ALL":
+    filtered = filtered[filtered["Category"] == category_filter]
 
-if selected_date != "ALL":
-    filtered = [r for r in filtered if r["_date_str"] == selected_date]
+if type_filter != "ALL":
+    filtered = filtered[filtered["Type"] == type_filter]
 
 if only_pending:
-    filtered = [r for r in filtered if str(r.get(COL_STATUS, "")) == "PENDING"]
+    filtered = filtered[filtered["Status"] == "PENDING"]
 
-
-# -----------------------------
-# SORT (LATEST FIRST)
-# -----------------------------
-filtered = sorted(
-    filtered,
-    key=lambda x: x["_date_obj"] if x["_date_obj"] else datetime.min,
-    reverse=True
-)
-
-st.write(f"Showing {len(filtered)} posts")
-
+# Sort newest first
+if "Date" in filtered.columns:
+    filtered = filtered.sort_values(by="Date", ascending=False)
 
 # -----------------------------
 # DISPLAY
 # -----------------------------
-for row in filtered:
-    st.markdown("---")
+for i, row in filtered.iterrows():
 
-    sheet_row = row["_row"]
+    st.divider()
 
-    title = row.get(COL_TITLE, "")
-    category = row.get(COL_CATEGORY, "")
-    caption = row.get(COL_CAPTION, "")
-    image_url = row.get(COL_IMAGE, "")
-    status = row.get(COL_STATUS, "")
-    datetime_display = row["_datetime_str"]
+    row_idx = int(row["_row"])
+    content_type = row.get("Type", "")
 
-    st.subheader(title)
+    # -----------------------------
+    # INSTAGRAM POSTS
+    # -----------------------------
+    if content_type == "instagram":
 
-    col1, col2 = st.columns([2, 3])
+        col1, col2 = st.columns([1, 1])
 
-    with col1:
-        if image_url:
-            st.image(image_url, use_container_width=True)
+        with col1:
+            if is_valid_url(row.get("Image URL")):
+                st.image(row["Image URL"], use_container_width=True)
+            else:
+                st.warning("No image")
 
-    with col2:
-        st.write("Category:", category)
-        st.write("Status:", status)
-        st.write("Date:", datetime_display)
+        with col2:
+            st.subheader(row.get("Title", ""))
 
-        new_caption = st.text_area(
-            "Caption",
-            value=caption,
-            height=120,
-            key=f"caption_{sheet_row}"
+            st.caption(
+                f"POST | {row.get('Category')} | {row.get('Status')}"
+            )
+
+            st.markdown("### Caption")
+
+            caption = st.text_area(
+                "Edit Caption",
+                value=row.get("Short Caption", ""),
+                key=f"caption_{i}"
+            )
+
+            colA, colB, colC, colD = st.columns(4)
+
+            with colA:
+                if st.button("Save", key=f"save_{i}"):
+                    update_caption(row_idx, caption)
+                    st.success("Saved")
+
+            with colB:
+                if st.button("Approve", key=f"approve_{i}"):
+                    update_status(row_idx, "APPROVED")
+                    st.success("Approved")
+
+            with colC:
+                if st.button("Reject", key=f"reject_{i}"):
+                    update_status(row_idx, "REJECTED")
+                    st.success("Rejected")
+
+            with colD:
+                if st.button("Pending", key=f"pending_{i}"):
+                    update_status(row_idx, "PENDING")
+                    st.success("Pending")
+
+    # -----------------------------
+    # ARTICLES
+    # -----------------------------
+    elif content_type == "article":
+
+        st.subheader(row.get("Title", ""))
+
+        if is_valid_url(row.get("Image URL")):
+            st.image(row["Image URL"], use_container_width=True)
+
+        st.caption(
+            f"ARTICLE | {row.get('Category')} | {row.get('Status')}"
         )
 
-        b1, b2, b3, b4 = st.columns(4)
+        st.markdown("### Article")
+        st.write(row.get("Article", ""))
 
-        if b1.button("Save", key=f"save_{sheet_row}"):
-            update_caption(sheet_row, new_caption)
-            st.success("Saved")
-            st.rerun()
+        st.markdown("### Summary")
+        st.write(row.get("Long Caption", ""))
 
-        if b2.button("Approve", key=f"approve_{sheet_row}"):
-            update_status(sheet_row, "APPROVED")
-            st.success("Approved")
-            st.rerun()
+        colA, colB, colC = st.columns(3)
 
-        if b3.button("Reject", key=f"reject_{sheet_row}"):
-            update_status(sheet_row, "REJECTED")
-            st.warning("Rejected")
-            st.rerun()
+        with colA:
+            if st.button("Approve", key=f"approve_a_{i}"):
+                update_status(row_idx, "APPROVED")
+                st.success("Approved")
 
-        if b4.button("Pending", key=f"pending_{sheet_row}"):
-            update_status(sheet_row, "PENDING")
-            st.info("Pending")
-            st.rerun()
+        with colB:
+            if st.button("Reject", key=f"reject_a_{i}"):
+                update_status(row_idx, "REJECTED")
+                st.success("Rejected")
+
+        with colC:
+            if st.button("Pending", key=f"pending_a_{i}"):
+                update_status(row_idx, "PENDING")
+                st.success("Pending")
+
+    # -----------------------------
+    # FALLBACK
+    # -----------------------------
+    else:
+        st.write(row.to_dict())
+
+# -----------------------------
+# FOOTER
+# -----------------------------
+st.caption(f"{len(filtered)} items shown")

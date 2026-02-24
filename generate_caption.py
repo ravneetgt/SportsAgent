@@ -1,63 +1,78 @@
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-def generate_caption(title, summary, category, style="insider"):
+def generate_content(title, summary, category="football", context="general"):
+
     prompt = f"""
-You are writing for a sharp football page.
+You are a sharp football analyst.
 
-SPORT: {category}
+Write:
 
-Your voice:
-- Insider analysis
-- Observational, not emotional
-- Slightly critical
-- Confident tone
-- No clichés
+SHORT:
+3 lines
 
-Write a 3-line caption.
+LONG:
+6 lines
 
-RULES:
-- Each line on a new line
-- First line under 8 words
-- Mention teams/players from title
-- No generic statements
-- No hashtags
-- No emojis
+ARTICLE:
+200 words
 
-EXTRA:
-- If it is a match preview, predict what could happen
-- If it is a result, explain WHY it happened
-- If it is a transfer, question the logic or impact
-- Add a subtle opinion or edge
-
-NEWS:
 Title: {title}
 Summary: {summary}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.9
-    )
+    for _ in range(2):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.8,
+                max_tokens=700
+            )
 
-    return response.choices[0].message.content.strip()
+            text = response.choices[0].message.content.strip()
+
+            short, long, article = parse(text)
+
+            return {
+                "short_caption": short,
+                "long_caption": long,
+                "article": article
+            }
+
+        except Exception as e:
+            print("OpenAI error:", e)
+            time.sleep(2)
+
+    return {
+        "short_caption": title,
+        "long_caption": summary,
+        "article": summary
+    }
 
 
-# -----------------------------
-# TEST
-# -----------------------------
-if __name__ == "__main__":
-    caption = generate_caption(
-        "Manchester City vs Arsenal preview",
-        "City host Arsenal in a top-of-the-table clash.",
-        "football"
-    )
+def parse(text):
+    short, long, article = "", "", ""
 
-    print(caption)
+    try:
+        if "SHORT:" in text:
+            short = text.split("SHORT:")[1].split("LONG:")[0].strip()
+
+        if "LONG:" in text:
+            long = text.split("LONG:")[1].split("ARTICLE:")[0].strip()
+
+        if "ARTICLE:" in text:
+            article = text.split("ARTICLE:")[1].strip()
+
+    except Exception as e:
+        print("Parse error:", e)
+        short = text
+
+    return short, long, article
