@@ -7,7 +7,7 @@ from datetime import datetime
 # -----------------------------
 # CONFIG
 # -----------------------------
-SPREADSHEET_ID = "1ZEE3T6nj4_4wuE9XfCu6lMhunhhQnIn1F7w-vmF47mo"
+SPREADSHEET_ID = "1eQwoa3etxf3g82jZop50lt598NJRCZ2bHRUUMQDsSOw"
 WORKSHEET_NAME = "Sheet1"
 
 st.set_page_config(layout="wide")
