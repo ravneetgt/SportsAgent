@@ -4,6 +4,8 @@ import os
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
+from create_post import create_post  # ✅ NEW
+
 # -----------------------------
 # CONFIG
 # -----------------------------
@@ -13,7 +15,7 @@ WORKSHEET_NAME = "Sheet1"
 st.set_page_config(layout="wide")
 
 # -----------------------------
-# AUTH (FIXED)
+# AUTH
 # -----------------------------
 def get_creds():
     scope = [
@@ -21,19 +23,15 @@ def get_creds():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    # -------- CLOUD FIRST --------
     try:
         if "gcp_service_account" in st.secrets:
-            print("Using STREAMLIT secrets")
             return ServiceAccountCredentials.from_json_keyfile_dict(
                 st.secrets["gcp_service_account"], scope
             )
     except Exception as e:
         print("Secrets error:", e)
 
-    # -------- LOCAL FALLBACK --------
     if os.path.exists("credentials.json"):
-        print("Using LOCAL credentials.json")
         return ServiceAccountCredentials.from_json_keyfile_name(
             "credentials.json", scope
         )
@@ -44,41 +42,48 @@ def get_creds():
 def get_sheet():
     creds = get_creds()
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
-    return sheet
+    return client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
 
 
 # -----------------------------
-# LOAD DATA (FIXED)
+# LOAD DATA
 # -----------------------------
 @st.cache_data(ttl=30)
 def load_data():
-    try:
-        sheet = get_sheet()
-        data = sheet.get_all_values()
+    sheet = get_sheet()
+    data = sheet.get_all_values()
 
-        if len(data) < 2:
-            return []
-
-        headers = data[0]
-
-        # Fix empty headers
-        headers = [h if h else f"col_{i}" for i, h in enumerate(headers)]
-
-        rows = data[1:]
-
-        records = []
-        for row in rows:
-            item = {}
-            for i, h in enumerate(headers):
-                item[h] = row[i] if i < len(row) else ""
-            records.append(item)
-
-        return records
-
-    except Exception as e:
-        st.error(f"Sheet error: {e}")
+    if len(data) < 2:
         return []
+
+    headers = [h if h else f"col_{i}" for i, h in enumerate(data[0])]
+    rows = data[1:]
+
+    records = []
+    for row in rows:
+        item = {}
+        for i, h in enumerate(headers):
+            item[h] = row[i] if i < len(row) else ""
+        records.append(item)
+
+    return records
+
+
+# -----------------------------
+# UPDATE STATUS (NEW)
+# -----------------------------
+def update_sheet_row(index, caption, status):
+    sheet = get_sheet()
+
+    # +2 because sheet is 1-indexed and header row exists
+    row_number = index + 2
+
+    # Short Caption = column 4 (0-based index 3)
+    # Status = column 8 (0-based index 7)
+    sheet.update_cell(row_number, 4, caption)
+    sheet.update_cell(row_number, 8, status)
+
+    st.success(f"Updated row {row_number}")
 
 
 # -----------------------------
@@ -102,9 +107,6 @@ def apply_filters(data, status, category, type_filter):
     return filtered
 
 
-# -----------------------------
-# DATE FORMAT
-# -----------------------------
 def format_date(ts):
     try:
         return datetime.fromtimestamp(int(ts)).strftime("%d %b %Y, %I:%M %p")
@@ -124,7 +126,7 @@ if not data:
     st.stop()
 
 # -----------------------------
-# SIDEBAR FILTERS
+# SIDEBAR
 # -----------------------------
 st.sidebar.header("Filters")
 
@@ -146,7 +148,7 @@ type_filter = st.sidebar.selectbox(
 filtered_data = apply_filters(data, status, category, type_filter)
 
 # -----------------------------
-# TABS (KEY DIFFERENTIATION)
+# TABS
 # -----------------------------
 tab1, tab2 = st.tabs(["📱 Instagram Posts", "📰 Articles"])
 
@@ -159,11 +161,12 @@ with tab1:
     if not insta:
         st.info("No Instagram posts")
     else:
-        for row in insta[::-1]:
+        for i, row in enumerate(insta[::-1]):
             st.divider()
 
             col1, col2 = st.columns([1, 1])
 
+            # IMAGE
             with col1:
                 image_url = row.get("Image URL", "")
 
@@ -172,6 +175,7 @@ with tab1:
                 else:
                     st.warning("Invalid image")
 
+            # CONTENT
             with col2:
                 st.subheader(row.get("Title", ""))
 
@@ -179,11 +183,40 @@ with tab1:
                 st.write(f"**Status:** {row.get('Status')}")
                 st.write(f"**Date:** {format_date(row.get('Date'))}")
 
+                # ✅ FIX: UNIQUE KEY
                 caption = st.text_area(
                     "Caption",
                     value=row.get("Short Caption", ""),
-                    height=120
+                    height=120,
+                    key=f"caption_{i}"
                 )
+
+                colA, colB, colC = st.columns(3)
+
+                # PREVIEW
+                with colA:
+                    if st.button("Preview", key=f"preview_{i}"):
+                        try:
+                            post_path = create_post(
+                                row["Image URL"],
+                                row.get("Title", ""),
+                                caption,
+                                f"post_{i}.png"
+                            )
+                            st.image(post_path, use_container_width=True)
+                        except Exception as e:
+                            st.error(e)
+
+                # APPROVE
+                with colB:
+                    if st.button("Approve", key=f"approve_{i}"):
+                        update_sheet_row(i, caption, "APPROVED")
+
+                # REJECT
+                with colC:
+                    if st.button("Reject", key=f"reject_{i}"):
+                        update_sheet_row(i, caption, "REJECTED")
+
 
 # -----------------------------
 # ARTICLES TAB

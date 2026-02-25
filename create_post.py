@@ -1,23 +1,36 @@
 from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
+import textwrap
+
+LOGO_PATH = "logo.png"
+FONT_PATH = "Arial.ttf"
 
 
-def create_post(image_path, title, caption, output_path):
-    print("create_post called")
+def create_post(image_url, title, caption, output_path):
+    # -----------------------------
+    # LOAD IMAGE FROM URL
+    # -----------------------------
+    response = requests.get(image_url)
+    img = Image.open(BytesIO(response.content)).convert("RGB")
 
-    img = Image.open(image_path).convert("RGB")
-    draw = ImageDraw.Draw(img)
+    # Instagram square
+    img = img.resize((1080, 1080))
 
     width, height = img.size
 
     # -----------------------------
-    # GRADIENT OVERLAY
+    # GRADIENT OVERLAY (BOTTOM ONLY)
     # -----------------------------
     overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
 
-    for y in range(height):
-        opacity = int(180 * (y / height))
-        overlay_draw.line([(0, y), (width, y)], fill=(0, 0, 0, opacity))
+    for i in range(400):
+        opacity = int(180 * (i / 400))
+        overlay_draw.rectangle(
+            [(0, height - i), (width, height - i + 1)],
+            fill=(0, 0, 0, opacity)
+        )
 
     img = Image.alpha_composite(img.convert('RGBA'), overlay)
 
@@ -26,15 +39,39 @@ def create_post(image_path, title, caption, output_path):
     # -----------------------------
     # FONTS
     # -----------------------------
-    title_font = ImageFont.truetype("Arial.ttf", 60)
-    caption_font = ImageFont.truetype("Arial.ttf", 40)
+    try:
+        title_font = ImageFont.truetype(FONT_PATH, 52)
+        caption_font = ImageFont.truetype(FONT_PATH, 40)
+        logo_font = ImageFont.truetype(FONT_PATH, 28)
+    except:
+        title_font = ImageFont.load_default()
+        caption_font = ImageFont.load_default()
+        logo_font = ImageFont.load_default()
+
+    # -----------------------------
+    # LOGO (TOP LEFT SMALL)
+    # -----------------------------
+    try:
+        logo = Image.open(LOGO_PATH).convert("RGBA")
+        logo.thumbnail((120, 120))
+        img.paste(logo, (40, 40), logo)
+
+        draw.text((170, 70), "GAMETRAIT", font=logo_font, fill="white")
+    except:
+        print("Logo not found")
+
+    # -----------------------------
+    # WRAP TEXT (IMPORTANT)
+    # -----------------------------
+    title_wrapped = textwrap.fill(title, width=28)
+    caption_wrapped = textwrap.fill(caption, width=32)
 
     # -----------------------------
     # TITLE
     # -----------------------------
     draw.text(
-        (50, height - 250),
-        title[:80],
+        (60, height - 320),
+        title_wrapped,
         font=title_font,
         fill=(255, 255, 255)
     )
@@ -43,32 +80,10 @@ def create_post(image_path, title, caption, output_path):
     # CAPTION
     # -----------------------------
     draw.text(
-        (50, height - 150),
-        caption[:100],
+        (60, height - 160),
+        caption_wrapped,
         font=caption_font,
-        fill=(200, 200, 200)
-    )
-
-    # -----------------------------
-    # LOGO (IMPORTANT)
-    # -----------------------------
-    try:
-        logo = Image.open("logo.png").convert("RGBA")
-
-        logo.thumbnail((150, 150))
-
-        img.paste(logo, (50, 50), logo)
-    except:
-        print("Logo not found")
-
-    # -----------------------------
-    # WORDMARK
-    # -----------------------------
-    draw.text(
-        (50, 200),
-        "GAMETRAIT",
-        font=caption_font,
-        fill=(255, 255, 255)
+        fill=(220, 220, 220)
     )
 
     # -----------------------------
