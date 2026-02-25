@@ -1,8 +1,29 @@
 import gspread
+import streamlit as st
 import time
+import os
 from oauth2client.service_account import ServiceAccountCredentials
 
-SHEET_NAME = "Sports AI Content"
+SPREADSHEET_ID = "1eQwoa3etxf3g82jZop50lt598NJRCZ2bHRUUMQDsSOw"
+WORKSHEET_NAME = "Sheet1"
+
+
+def get_creds(scope):
+    # LOCAL RUN
+    if os.path.exists("credentials.json"):
+        print("Using local credentials.json")
+        return ServiceAccountCredentials.from_json_keyfile_name(
+            "credentials.json", scope
+        )
+
+    # STREAMLIT CLOUD
+    if "gcp_service_account" in st.secrets:
+        print("Using Streamlit secrets")
+        return ServiceAccountCredentials.from_json_keyfile_dict(
+            st.secrets["gcp_service_account"], scope
+        )
+
+    raise Exception("No credentials found. Add credentials.json or Streamlit secrets.")
 
 
 def get_sheet():
@@ -11,20 +32,13 @@ def get_sheet():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        "credentials.json", scope
-    )
+    creds = get_creds(scope)
 
     client = gspread.authorize(creds)
 
-    spreadsheet = client.open_by_key("1eQwoa3etxf3g82jZop50lt598NJRCZ2bHRUUMQDsSOw")
-    sheet = spreadsheet.sheet1
+    spreadsheet = client.open_by_key(SPREADSHEET_ID)
 
-    print("SPREADSHEET:", spreadsheet.title)
-    print("WORKSHEET:", sheet.title)
-
-    return sheet
-
+    return spreadsheet.worksheet(WORKSHEET_NAME)
 def push_if_new(row):
     try:
         sheet = get_sheet()
