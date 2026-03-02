@@ -47,7 +47,8 @@ def fetch_news():
                 "title": title,
                 "summary": summary,
                 "category": "football",
-                "context": "news"
+                "context": "news",
+                "query": f"{title} football soccer player action stadium"
             })
 
     # dedupe
