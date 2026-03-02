@@ -2,13 +2,16 @@ import time
 import requests
 
 from fetch_news import fetch_news
-from rank_news import rank_news
+from fetch_fixtures import fetch_fixtures
 from generate_caption import generate_content
 from get_image import get_image
 from create_post import create_post
 from push_to_sheet import push_if_new
 
 
+# -----------------------------
+# DOWNLOAD IMAGE
+# -----------------------------
 def download_image(url, path="temp.jpg"):
     try:
         res = requests.get(url, timeout=10)
@@ -16,106 +19,89 @@ def download_image(url, path="temp.jpg"):
             with open(path, "wb") as f:
                 f.write(res.content)
             return path
-        else:
-            print("Image download failed:", res.status_code)
-            return None
     except Exception as e:
         print("Download error:", e)
-        return None
+
+    return None
 
 
+# -----------------------------
+# MAIN
+# -----------------------------
 def run():
     print("=== START ===")
 
     news = fetch_news()
+    fixtures = fetch_fixtures()
 
-    if not news:
-        print("No news found")
+    print("FIXTURES:", len(fixtures))
+
+    all_content = news + fixtures
+
+    if not all_content:
+        print("No content found")
         return
 
-    ranked = rank_news(news)
-
-    for item in ranked:
+    for item in all_content:
 
         try:
             title = item.get("title", "")
             summary = item.get("summary", "")
-            category = item.get("category", "football")
-            context = item.get("context", "general")
-            score = item.get("score", 0)
+            context = item.get("context", "news")
 
             print("Processing:", title)
 
             # -----------------------------
-            # GENERATE CONTENT
+            # AI CONTENT (SAFE)
             # -----------------------------
-            short_caption, long_caption, article = generate_content(
-                title,
-                summary,
-                category,
-                context
-            )
+            result = generate_content(title, summary, "football", context)
+
+            if not result or len(result) != 4:
+                print("Invalid AI output → fallback")
+                overlay, short, long, article = title[:80], title, summary, summary
+            else:
+                overlay, short, long, article = result
 
             # -----------------------------
-            # GET IMAGE URL
+            # IMAGE
             # -----------------------------
             image_url = get_image(title)
-
-            local_image_path = None
-            final_image_path = None
+            final_url = image_url
 
             if image_url:
-                print("Pexels status: 200")
+                local = download_image(image_url)
 
-                # download image
-                local_image_path = download_image(image_url)
-
-                if local_image_path:
+                if local:
                     try:
-                        print("create_post called")
+                        final_path = "post.jpg"
 
-                        final_image_path = "post.jpg"
+                        create_post(local, title, overlay, final_path)
 
-                        create_post(
-                            image_path=local_image_path,
-                            title=title,
-                            caption=short_caption,
-                            output_path=final_image_path
-                        )
+                        # OPTIONAL upload
+                        try:
+                            from upload_image import upload_image
+                            final_url = upload_image(final_path)
+                            print("Uploaded:", final_url)
+                        except Exception as e:
+                            print("Upload skipped:", e)
 
                     except Exception as e:
-                        print("Image error:", e)
+                        print("Post creation error:", e)
 
             # -----------------------------
-            # USE FINAL IMAGE (UPLOAD STEP)
-            # -----------------------------
-            final_url = image_url  # fallback
-
-            try:
-                if final_image_path:
-                    # upload to cloudinary (you already have this)
-                    from upload_image import upload_image
-
-                    final_url = upload_image(final_image_path)
-                    print("Uploaded:", final_url)
-
-            except Exception as e:
-                print("Upload error:", e)
-
-            # -----------------------------
-            # PUSH INSTAGRAM POST
+            # PUSH INSTAGRAM
             # -----------------------------
             push_if_new({
                 "Type": "instagram",
-                "Category": category,
+                "Category": "football",
                 "Title": title,
-                "Short Caption": short_caption,
-                "Long Caption": long_caption,
+                "Short Caption": short,
+                "Long Caption": long,
                 "Article": "",
                 "Image URL": final_url,
                 "Status": "PENDING",
                 "Context": context,
-                "Score": score,
+                "Score": 0,
                 "Date": int(time.time())
             })
 
@@ -124,15 +110,15 @@ def run():
             # -----------------------------
             push_if_new({
                 "Type": "article",
-                "Category": category,
+                "Category": "football",
                 "Title": title,
-                "Short Caption": short_caption,
-                "Long Caption": long_caption,
+                "Short Caption": short,
+                "Long Caption": long,
                 "Article": article,
                 "Image URL": final_url,
                 "Status": "PENDING",
                 "Context": context,
-                "Score": score,
+                "Score": 0,
                 "Date": int(time.time())
             })
 
@@ -140,6 +126,8 @@ def run():
 
         except Exception as e:
             print("ERROR:", e)
+
+    print("=== COMPLETE ===")
 
 
 if __name__ == "__main__":

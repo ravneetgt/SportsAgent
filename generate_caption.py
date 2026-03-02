@@ -1,78 +1,135 @@
 import os
+import time
 from openai import OpenAI
 from dotenv import load_dotenv
-import time
 
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
+# -----------------------------
+# MAIN GENERATION FUNCTION
+# -----------------------------
 def generate_content(title, summary, category="football", context="general"):
 
     prompt = f"""
-You are a sharp football analyst.
+You are GAMETRAIT — a modern football intelligence system.
+
+Tone:
+- Sharp
+- Insightful
+- No clichés
 
 Write:
 
+OVERLAY:
+Max 10–12 words. Insight only.
+
 SHORT:
-3 lines
+2 lines.
 
 LONG:
-6 lines
+4–5 lines.
 
 ARTICLE:
-200 words
+200 words.
 
+Context: {context}
 Title: {title}
 Summary: {summary}
+
+If preview:
+- Add prediction
+- Mention tactical edge
+
+If news:
+- Focus on implications, not repetition
 """
 
-    for _ in range(2):
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.8,
-                max_tokens=700
-            )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.9,
+            max_tokens=700,
+        )
 
-            text = response.choices[0].message.content.strip()
+        text = response.choices[0].message.content.strip()
 
-            short, long, article = parse(text)
+        print("\n--- RAW AI OUTPUT ---\n", text)
 
-            return {
-                "short_caption": short,
-                "long_caption": long,
-                "article": article
-            }
+        overlay, short, long, article = parse(text)
 
-        except Exception as e:
-            print("OpenAI error:", e)
-            time.sleep(2)
+        # -----------------------------
+        # FALLBACK SAFETY
+        # -----------------------------
+        if not overlay:
+            overlay = title[:80]
 
-    return {
-        "short_caption": title,
-        "long_caption": summary,
-        "article": summary
-    }
+        if not short:
+            short = title
+
+        if not long:
+            long = summary
+
+        if not article:
+            article = summary
+
+        return overlay, short, long, article
+
+    except Exception as e:
+        print("OpenAI error:", e)
+
+        # HARD FALLBACK (NEVER FAIL)
+        return (
+            title[:80],
+            title,
+            summary,
+            summary
+        )
 
 
+# -----------------------------
+# ROBUST PARSER
+# -----------------------------
 def parse(text):
-    short, long, article = "", "", ""
+    overlay, short, long, article = "", "", "", ""
 
     try:
-        if "SHORT:" in text:
-            short = text.split("SHORT:")[1].split("LONG:")[0].strip()
+        lines = text.split("\n")
+        current = None
 
-        if "LONG:" in text:
-            long = text.split("LONG:")[1].split("ARTICLE:")[0].strip()
+        for line in lines:
+            clean = line.strip()
 
-        if "ARTICLE:" in text:
-            article = text.split("ARTICLE:")[1].strip()
+            if clean.startswith("OVERLAY"):
+                current = "overlay"
+                overlay = clean.replace("OVERLAY:", "").strip()
+
+            elif clean.startswith("SHORT"):
+                current = "short"
+                short = clean.replace("SHORT:", "").strip()
+
+            elif clean.startswith("LONG"):
+                current = "long"
+                long = clean.replace("LONG:", "").strip()
+
+            elif clean.startswith("ARTICLE"):
+                current = "article"
+                article = clean.replace("ARTICLE:", "").strip()
+
+            else:
+                if current == "overlay":
+                    overlay += " " + clean
+                elif current == "short":
+                    short += " " + clean
+                elif current == "long":
+                    long += " " + clean
+                elif current == "article":
+                    article += " " + clean
 
     except Exception as e:
         print("Parse error:", e)
-        short = text
 
-    return short, long, article
+    return overlay.strip(), short.strip(), long.strip(), article.strip()

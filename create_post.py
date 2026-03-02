@@ -1,94 +1,147 @@
-from PIL import Image, ImageDraw, ImageFont
+import os
 import requests
-from io import BytesIO
 import textwrap
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
-LOGO_PATH = "logo.png"
+WIDTH = 1080
+HEIGHT = 1350  # Instagram 4:5
+
+LOGO_PATH = "assets/logo.png"
 FONT_PATH = "Arial.ttf"
 
 
-def create_post(image_url, title, caption, output_path):
-    # -----------------------------
-    # LOAD IMAGE FROM URL
-    # -----------------------------
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content)).convert("RGB")
+# -----------------------------
+# LOAD IMAGE
+# -----------------------------
+def load_image(source):
+    try:
+        if source.startswith("http"):
+            res = requests.get(source, timeout=10)
+            return Image.open(BytesIO(res.content)).convert("RGB")
+        else:
+            return Image.open(source).convert("RGB")
+    except:
+        return Image.new("RGB", (WIDTH, HEIGHT), (20, 20, 20))
 
-    # Instagram square
-    img = img.resize((1080, 1080))
 
-    width, height = img.size
+# -----------------------------
+# RESIZE COVER
+# -----------------------------
+def resize_cover(img):
+    img_ratio = img.width / img.height
+    target_ratio = WIDTH / HEIGHT
 
-    # -----------------------------
-    # GRADIENT OVERLAY (BOTTOM ONLY)
-    # -----------------------------
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    overlay_draw = ImageDraw.Draw(overlay)
+    if img_ratio > target_ratio:
+        new_height = HEIGHT
+        new_width = int(new_height * img_ratio)
+    else:
+        new_width = WIDTH
+        new_height = int(new_width / img_ratio)
 
-    for i in range(400):
-        opacity = int(180 * (i / 400))
-        overlay_draw.rectangle(
-            [(0, height - i), (width, height - i + 1)],
-            fill=(0, 0, 0, opacity)
+    img = img.resize((new_width, new_height))
+
+    left = (new_width - WIDTH) // 2
+    top = (new_height - HEIGHT) // 2
+
+    return img.crop((left, top, left + WIDTH, top + HEIGHT))
+
+
+# -----------------------------
+# GRADIENT
+# -----------------------------
+def add_gradient(img):
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    for i in range(700):
+        opacity = int(200 * (i / 700))
+        draw.rectangle(
+            [(0, HEIGHT - i), (WIDTH, HEIGHT - i + 1)],
+            fill=(0, 0, 0, opacity),
         )
 
-    img = Image.alpha_composite(img.convert('RGBA'), overlay)
+    return Image.alpha_composite(img.convert("RGBA"), overlay)
+
+
+# -----------------------------
+# TEXT DRAW
+# -----------------------------
+def draw_text(draw, text, font, x, y, width, color):
+    lines = textwrap.wrap(text, width=width)
+
+    for line in lines:
+        draw.text(
+            (x, y),
+            line,
+            font=font,
+            fill=color,
+            stroke_width=2,
+            stroke_fill=(0, 0, 0),
+        )
+        y += font.getbbox(line)[3] + 8
+
+    return y
+
+
+# -----------------------------
+# MAIN
+# -----------------------------
+def create_post(image_source, title, overlay_text, output_path="preview.png"):
+
+    img = load_image(image_source)
+    img = resize_cover(img)
+    img = add_gradient(img)
 
     draw = ImageDraw.Draw(img)
 
-    # -----------------------------
     # FONTS
-    # -----------------------------
     try:
-        title_font = ImageFont.truetype(FONT_PATH, 52)
-        caption_font = ImageFont.truetype(FONT_PATH, 40)
-        logo_font = ImageFont.truetype(FONT_PATH, 28)
+        title_font = ImageFont.truetype(FONT_PATH, 60)
+        caption_font = ImageFont.truetype(FONT_PATH, 42)
+        brand_font = ImageFont.truetype(FONT_PATH, 30)
     except:
         title_font = ImageFont.load_default()
         caption_font = ImageFont.load_default()
-        logo_font = ImageFont.load_default()
+        brand_font = ImageFont.load_default()
 
     # -----------------------------
-    # LOGO (TOP LEFT SMALL)
+    # BRANDING (TOP LEFT)
     # -----------------------------
     try:
-        logo = Image.open(LOGO_PATH).convert("RGBA")
-        logo.thumbnail((120, 120))
-        img.paste(logo, (40, 40), logo)
+        if os.path.exists(LOGO_PATH):
+            logo = Image.open(LOGO_PATH).convert("RGBA")
+            logo.thumbnail((80, 80))
 
-        draw.text((170, 70), "GAMETRAIT", font=logo_font, fill="white")
-    except:
-        print("Logo not found")
+            img.paste(logo, (40, 40), logo)
 
-    # -----------------------------
-    # WRAP TEXT (IMPORTANT)
-    # -----------------------------
-    title_wrapped = textwrap.fill(title, width=28)
-    caption_wrapped = textwrap.fill(caption, width=32)
+            draw.text(
+                (140, 55),
+                "GAMETRAIT",
+                font=brand_font,
+                fill=(255, 255, 255),
+                stroke_width=1,
+                stroke_fill=(0, 0, 0),
+            )
+        else:
+            draw.text((40, 50), "GAMETRAIT", font=brand_font, fill=(255, 255, 255))
+    except Exception as e:
+        print("Logo error:", e)
 
     # -----------------------------
     # TITLE
     # -----------------------------
-    draw.text(
-        (60, height - 320),
-        title_wrapped,
-        font=title_font,
-        fill=(255, 255, 255)
-    )
+    y = HEIGHT - 420
+    y = draw_text(draw, title, title_font, 60, y, 28, (255, 255, 255))
 
     # -----------------------------
-    # CAPTION
+    # OVERLAY CAPTION
     # -----------------------------
-    draw.text(
-        (60, height - 160),
-        caption_wrapped,
-        font=caption_font,
-        fill=(220, 220, 220)
-    )
+    overlay_text = overlay_text[:180]
 
-    # -----------------------------
+    draw_text(draw, overlay_text, caption_font, 60, y + 20, 34, (220, 220, 220))
+
     # SAVE
-    # -----------------------------
     img = img.convert("RGB")
     img.save(output_path)
 
