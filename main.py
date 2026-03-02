@@ -8,97 +8,92 @@ from get_image import get_image
 from create_post import create_post
 from push_to_sheet import push_if_new
 from rank_news import rank_news
+
 from intelligence import enrich_item
+from confidence_engine import compute_confidence
+from narrative_memory import update_memory, get_narrative
+from angle_engine import get_angle
+from editorial_brain import build_editorial_context
+
+from personality_engine import choose_personality
+from format_engine import choose_format
 
 
-# -----------------------------
-# DOWNLOAD IMAGE
-# -----------------------------
 def download_image(url, path="temp.jpg"):
     try:
         res = requests.get(url, timeout=10)
-
         if res.status_code == 200:
             with open(path, "wb") as f:
                 f.write(res.content)
             return path
-
-        print("Image download failed:", res.status_code)
-
-    except Exception as e:
-        print("Download error:", e)
-
+    except:
+        pass
     return None
 
 
-# -----------------------------
-# PROCESS ITEM
-# -----------------------------
 def process_item(item):
 
     title = item.get("title", "")
     summary = item.get("summary", "")
     context = item.get("context", "news")
-    insight = item.get("insight")
     score = item.get("score", 0)
 
-    print(f"\n--- Processing ({score}) ---")
+    # -----------------------------
+    # CORE ENRICHMENT
+    # -----------------------------
+    insight = item.get("insight")
+    confidence = item.get("confidence")
+    narrative = item.get("narrative", "")
+
+    # -----------------------------
+    # ANGLE + EDITORIAL
+    # -----------------------------
+    item["angle"] = get_angle(item)
+    editorial = build_editorial_context(item)
+
+    # -----------------------------
+    # NEW LAYERS
+    # -----------------------------
+    personality = choose_personality(item)
+    fmt = choose_format(item)
+
+    print(f"\n--- ({score}) [{personality}] [{fmt}] ---")
     print(title)
 
     # -----------------------------
-    # AI CONTENT
+    # GENERATE
     # -----------------------------
-    result = generate_content(
+    overlay, short, long, article = generate_content(
         title,
         summary,
         "football",
         context,
-        insight
+        insight,
+        editorial,
+        confidence,
+        narrative,
+        personality,
+        fmt
     )
 
-    if not result or len(result) != 4:
-        print("Fallback triggered")
-        overlay, short, long, article = title[:80], title, summary, summary
-    else:
-        overlay, short, long, article = result
-
     # -----------------------------
-    # IMAGE (IMPORTANT FIX)
+    # IMAGE
     # -----------------------------
-    image_url = get_image(item)   # FIXED
+    image_url = get_image(item)
     final_url = image_url
 
     if image_url:
         local = download_image(image_url)
-
         if local:
             try:
-                final_path = "post.jpg"
-
-                create_post(
-                    local,
-                    title,
-                    overlay,
-                    final_path
-                )
-
-                # -----------------------------
-                # UPLOAD
-                # -----------------------------
-                try:
-                    from upload_image import upload_image
-
-                    final_url = upload_image(final_path)
-                    print("Uploaded:", final_url)
-
-                except Exception as e:
-                    print("Upload skipped:", e)
-
-            except Exception as e:
-                print("Post creation error:", e)
+                create_post(local, title, overlay, "post.jpg")
+                from upload_image import upload_image
+                final_url = upload_image("post.jpg")
+            except:
+                pass
 
     # -----------------------------
-    # INSTAGRAM
+    # PUSH
     # -----------------------------
     push_if_new({
         "Type": "instagram",
@@ -114,9 +109,6 @@ def process_item(item):
         "Date": int(time.time())
     })
 
-    # -----------------------------
-    # ARTICLE
-    # -----------------------------
     push_if_new({
         "Type": "article",
         "Category": "football",
@@ -134,9 +126,6 @@ def process_item(item):
     print("✓ Done")
 
 
-# -----------------------------
-# MAIN
-# -----------------------------
 def run():
 
     print("=== START ===")
@@ -144,47 +133,28 @@ def run():
     news = fetch_news()
     fixtures = fetch_fixtures()
 
-    print("NEWS:", len(news))
-    print("FIXTURES:", len(fixtures))
-
     all_content = news + fixtures
 
-    if not all_content:
-        print("No content found")
-        return
-
-    # -----------------------------
-    # INTELLIGENCE
-    # -----------------------------
     enriched = []
 
     for item in all_content:
         try:
-            enriched.append(enrich_item(item))
-        except Exception as e:
-            print("Intelligence error:", e)
+            item = enrich_item(item)
+            item = compute_confidence(item)
+
+            update_memory(item)
+            item["narrative"] = get_narrative(item)
+
             enriched.append(item)
 
-    # -----------------------------
-    # RANKING
-    # -----------------------------
+        except Exception as e:
+            print("Enrich error:", e)
+            enriched.append(item)
+
     ranked = rank_news(enriched)
 
-    print("SELECTED:", len(ranked))
-
-    if not ranked:
-        print("No ranked content")
-        return
-
-    # -----------------------------
-    # PROCESS
-    # -----------------------------
     for item in ranked:
-
-        try:
-            process_item(item)
-        except Exception as e:
-            print("ERROR:", e)
+        process_item(item)
 
     print("=== COMPLETE ===")
 

@@ -1,5 +1,4 @@
 import os
-import time
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -8,136 +7,145 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-def generate_content(title, summary, category="football", context="general", insight=None):
+def generate_content(
+    title,
+    summary,
+    category="football",
+    context="general",
+    insight=None,
+    editorial=None,
+    confidence=None,
+    narrative=None,
+    personality="analyst",
+    fmt="standard"
+):
 
-    insight_text = ""
+    personality_rules = {
+        "analyst": "Calm, structured, tactical.",
+        "insider": "Subtle, knowing, like dressing-room insight.",
+        "contrarian": "Challenge common views.",
+        "cultural": "Narrative, cinematic, emotional restraint.",
+        "fan": "Raw, emotional, punchy."
+    }
 
-    if insight:
-        insight_text = f"""
-DATA:
-Home Team: {insight.get("home_team")}
-Away Team: {insight.get("away_team")}
-Home Form: {insight.get("home_form")}
-Away Form: {insight.get("away_form")}
-Home Goals (last 5): {insight.get("home_goals")}
-Away Goals (last 5): {insight.get("away_goals")}
-Prediction: {insight.get("prediction")}
-"""
+    format_rules = {
+        "standard": "Balanced output.",
+        "quick_take": "Short, sharp, fewer words.",
+        "prediction": "Lean on probabilities and match outcome.",
+        "breakdown": "More analysis in LONG and ARTICLE."
+    }
 
     prompt = f"""
-You are GAMETRAIT — a football intelligence system.
+You are GAMETRAIT.
+
+PERSONALITY:
+{personality} → {personality_rules.get(personality)}
+
+FORMAT:
+{fmt} → {format_rules.get(fmt)}
+
+DATA:
+{insight}
+
+CONFIDENCE:
+{confidence}
+
+NARRATIVE:
+{narrative}
+
+EDITORIAL:
+{editorial}
+
+Title: {title}
+Summary: {summary}
 
 Write:
 
 OVERLAY:
-Max 10–12 words. Insight only.
+Max 10 words.
 
 SHORT:
 2 lines.
 
 LONG:
-4–5 lines. Analytical.
+4–5 lines.
 
 ARTICLE:
 ~200 words.
 
-Context: {context}
+RULES:
+- No clichés
+- Insight > description
+- Use football understanding
+- Match personality tone
+- Match format constraints
 
-{insight_text}
+If prediction format:
+- Mention who has edge
 
-Title: {title}
-Summary: {summary}
+If contrarian:
+- Challenge obvious narrative
 
-Rules:
-- Do NOT repeat the title
-- Use data if available
-- If prediction = home_strong → lean home
-- If prediction = away_strong → lean away
-- If balanced → highlight key tactical battle
+If insider:
+- Imply deeper understanding
 
-Tone:
-- Intelligent
-- Crisp
-- Non-generic
+If fan:
+- Keep it punchy
+
 """
 
     try:
-        response = client.chat.completions.create(
+        res = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.9,
+            temperature=1.0,
             max_tokens=700,
         )
 
-        text = response.choices[0].message.content.strip()
+        text = res.choices[0].message.content.strip()
 
-        print("\n--- RAW AI OUTPUT ---\n", text)
-
-        overlay, short, long, article = parse(text)
-
-        # fallback safety
-        if not overlay:
-            overlay = title[:80]
-
-        if not short:
-            short = title
-
-        if not long:
-            long = summary
-
-        if not article:
-            article = summary
-
-        return overlay, short, long, article
+        return parse(text)
 
     except Exception as e:
-        print("OpenAI error:", e)
-
+        print("AI error:", e)
         return title[:80], title, summary, summary
 
 
-# -----------------------------
-# PARSER
-# -----------------------------
 def parse(text):
     overlay, short, long, article = "", "", "", ""
 
-    try:
-        text = text.replace("**", "")
+    text = text.replace("**", "")
+    lines = text.split("\n")
 
-        lines = text.split("\n")
-        current = None
+    current = None
 
-        for line in lines:
-            clean = line.strip()
+    for line in lines:
+        clean = line.strip()
 
-            if clean.startswith("OVERLAY:"):
-                current = "overlay"
-                overlay = clean.replace("OVERLAY:", "").strip()
+        if clean.startswith("OVERLAY:"):
+            current = "overlay"
+            overlay = clean.replace("OVERLAY:", "").strip()
 
-            elif clean.startswith("SHORT:"):
-                current = "short"
-                short = clean.replace("SHORT:", "").strip()
+        elif clean.startswith("SHORT:"):
+            current = "short"
+            short = clean.replace("SHORT:", "").strip()
 
-            elif clean.startswith("LONG:"):
-                current = "long"
-                long = clean.replace("LONG:", "").strip()
+        elif clean.startswith("LONG:"):
+            current = "long"
+            long = clean.replace("LONG:", "").strip()
 
-            elif clean.startswith("ARTICLE:"):
-                current = "article"
-                article = clean.replace("ARTICLE:", "").strip()
+        elif clean.startswith("ARTICLE:"):
+            current = "article"
+            article = clean.replace("ARTICLE:", "").strip()
 
-            else:
-                if current == "overlay":
-                    overlay += " " + clean
-                elif current == "short":
-                    short += " " + clean
-                elif current == "long":
-                    long += " " + clean
-                elif current == "article":
-                    article += " " + clean
-
-    except Exception as e:
-        print("Parse error:", e)
+        else:
+            if current == "overlay":
+                overlay += " " + clean
+            elif current == "short":
+                short += " " + clean
+            elif current == "long":
+                long += " " + clean
+            elif current == "article":
+                article += " " + clean
 
     return overlay.strip(), short.strip(), long.strip(), article.strip()

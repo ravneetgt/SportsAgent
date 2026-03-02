@@ -4,9 +4,9 @@ import os
 API_KEY = os.getenv("FOOTBALL_API_KEY")
 BASE_URL = "https://api.football-data.org/v4"
 
-# -----------------------------
-# API CALL
-# -----------------------------
+team_cache = {}
+
+
 def api_get(endpoint):
     headers = {"X-Auth-Token": API_KEY}
 
@@ -15,19 +15,10 @@ def api_get(endpoint):
 
         if res.status_code == 200:
             return res.json()
-        else:
-            print("API status:", res.status_code)
-
     except Exception as e:
         print("API error:", e)
 
     return None
-
-
-# -----------------------------
-# TEAM CACHE
-# -----------------------------
-team_cache = {}
 
 
 def get_team_id(team_name):
@@ -47,9 +38,6 @@ def get_team_id(team_name):
     return None
 
 
-# -----------------------------
-# TEAM FORM (LAST 5 MATCHES)
-# -----------------------------
 def get_team_form(team_id):
     data = api_get(f"/teams/{team_id}/matches?limit=5")
 
@@ -92,9 +80,6 @@ def get_team_form(team_id):
     }
 
 
-# -----------------------------
-# SIMPLE PREDICTION
-# -----------------------------
 def predict(home_form, away_form):
 
     def score(form):
@@ -111,12 +96,8 @@ def predict(home_form, away_form):
         return "balanced"
 
 
-# -----------------------------
-# ENRICH ITEM
-# -----------------------------
 def enrich_item(item):
 
-    # only apply to previews
     if item.get("context") != "preview":
         return item
 
@@ -148,6 +129,8 @@ def enrich_item(item):
         "away_form": away_form["form"],
         "home_goals": home_form["goals_for"],
         "away_goals": away_form["goals_for"],
+        "home_conceded": home_form["goals_against"],
+        "away_conceded": away_form["goals_against"],
         "prediction": prediction
     }
 
