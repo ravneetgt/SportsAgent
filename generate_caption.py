@@ -8,9 +8,6 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# -----------------------------
-# MAIN GENERATION FUNCTION
-# -----------------------------
 def generate_content(title, summary, category="football", context="general"):
 
     prompt = f"""
@@ -44,7 +41,7 @@ If preview:
 - Mention tactical edge
 
 If news:
-- Focus on implications, not repetition
+- Focus on implications
 """
 
     try:
@@ -62,7 +59,7 @@ If news:
         overlay, short, long, article = parse(text)
 
         # -----------------------------
-        # FALLBACK SAFETY
+        # FALLBACKS (NEVER RETURN EMPTY)
         # -----------------------------
         if not overlay:
             overlay = title[:80]
@@ -81,41 +78,38 @@ If news:
     except Exception as e:
         print("OpenAI error:", e)
 
-        # HARD FALLBACK (NEVER FAIL)
-        return (
-            title[:80],
-            title,
-            summary,
-            summary
-        )
+        # HARD FALLBACK
+        return title[:80], title, summary, summary
 
 
 # -----------------------------
-# ROBUST PARSER
+# ROBUST PARSER (FIXED)
 # -----------------------------
 def parse(text):
     overlay, short, long, article = "", "", "", ""
 
     try:
+        text = text.replace("**", "")  # remove markdown
+
         lines = text.split("\n")
         current = None
 
         for line in lines:
             clean = line.strip()
 
-            if clean.startswith("OVERLAY"):
+            if clean.startswith("OVERLAY:"):
                 current = "overlay"
                 overlay = clean.replace("OVERLAY:", "").strip()
 
-            elif clean.startswith("SHORT"):
+            elif clean.startswith("SHORT:"):
                 current = "short"
                 short = clean.replace("SHORT:", "").strip()
 
-            elif clean.startswith("LONG"):
+            elif clean.startswith("LONG:"):
                 current = "long"
                 long = clean.replace("LONG:", "").strip()
 
-            elif clean.startswith("ARTICLE"):
+            elif clean.startswith("ARTICLE:"):
                 current = "article"
                 article = clean.replace("ARTICLE:", "").strip()
 

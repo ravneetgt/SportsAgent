@@ -58,9 +58,14 @@ def run():
 
             if not result or len(result) != 4:
                 print("Invalid AI output → fallback")
+                result = generate_content(title, summary, "football", context)
+
+            if not result or len(result) != 4:
+                print("Invalid AI output → fallback")
                 overlay, short, long, article = title[:80], title, summary, summary
             else:
                 overlay, short, long, article = result
+   
 
             # -----------------------------
             # IMAGE

@@ -9,21 +9,19 @@ WORKSHEET_NAME = "Sheet1"
 
 
 def get_creds(scope):
-    # LOCAL RUN
+    # LOCAL
     if os.path.exists("credentials.json"):
-        print("Using local credentials.json")
         return ServiceAccountCredentials.from_json_keyfile_name(
             "credentials.json", scope
         )
 
     # STREAMLIT CLOUD
     if "gcp_service_account" in st.secrets:
-        print("Using Streamlit secrets")
         return ServiceAccountCredentials.from_json_keyfile_dict(
             st.secrets["gcp_service_account"], scope
         )
 
-    raise Exception("No credentials found. Add credentials.json or Streamlit secrets.")
+    raise Exception("No credentials found")
 
 
 def get_sheet():
@@ -33,24 +31,26 @@ def get_sheet():
     ]
 
     creds = get_creds(scope)
-
     client = gspread.authorize(creds)
+    return client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
 
-    spreadsheet = client.open_by_key(SPREADSHEET_ID)
 
-    return spreadsheet.worksheet(WORKSHEET_NAME)
 def push_if_new(row):
     try:
         sheet = get_sheet()
 
         # -----------------------------
-        # DUPLICATE CHECK
+        # DEDUPE (FIXED)
         # -----------------------------
-        titles = sheet.col_values(3)
+        existing = sheet.get_all_records()
 
-        if row.get("Title") in titles:
-            print("SKIP:", row.get("Title")[:60])
-            return False
+        for r in existing:
+            if (
+                r.get("Title") == row.get("Title")
+                and r.get("Type") == row.get("Type")
+            ):
+                print("SKIP:", row.get("Title")[:60], row.get("Type"))
+                return False
 
         # -----------------------------
         # BUILD ROW
@@ -61,7 +61,7 @@ def push_if_new(row):
             row.get("Title", ""),
             row.get("Short Caption", ""),
             row.get("Long Caption", ""),
-            row.get("Article", ""),
+            row.get("Article", ""),      # COLUMN 6 (FIXED)
             row.get("Image URL", ""),
             row.get("Status", "PENDING"),
             row.get("Context", ""),
@@ -69,7 +69,7 @@ def push_if_new(row):
             row.get("Date", int(time.time()))
         ]
 
-        print("ADDING:", row.get("Title")[:60])
+        print("ADDING:", row.get("Title")[:60], row.get("Type"))
 
         sheet.append_row(values, table_range="A1:K1")
 

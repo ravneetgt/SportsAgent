@@ -5,15 +5,12 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
 WIDTH = 1080
-HEIGHT = 1350  # Instagram 4:5
+HEIGHT = 1350
 
 LOGO_PATH = "assets/logo.png"
 FONT_PATH = "Arial.ttf"
 
 
-# -----------------------------
-# LOAD IMAGE
-# -----------------------------
 def load_image(source):
     try:
         if source.startswith("http"):
@@ -25,9 +22,6 @@ def load_image(source):
         return Image.new("RGB", (WIDTH, HEIGHT), (20, 20, 20))
 
 
-# -----------------------------
-# RESIZE COVER
-# -----------------------------
 def resize_cover(img):
     img_ratio = img.width / img.height
     target_ratio = WIDTH / HEIGHT
@@ -47,9 +41,6 @@ def resize_cover(img):
     return img.crop((left, top, left + WIDTH, top + HEIGHT))
 
 
-# -----------------------------
-# GRADIENT
-# -----------------------------
 def add_gradient(img):
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
@@ -64,9 +55,6 @@ def add_gradient(img):
     return Image.alpha_composite(img.convert("RGBA"), overlay)
 
 
-# -----------------------------
-# TEXT DRAW
-# -----------------------------
 def draw_text(draw, text, font, x, y, width, color):
     lines = textwrap.wrap(text, width=width)
 
@@ -85,8 +73,16 @@ def draw_text(draw, text, font, x, y, width, color):
 
 
 # -----------------------------
-# MAIN
+# MEASURE TEXT HEIGHT
 # -----------------------------
+def get_text_height(text, font, width):
+    lines = textwrap.wrap(text, width=width)
+    height = 0
+    for line in lines:
+        height += font.getbbox(line)[3] + 8
+    return height
+
+
 def create_post(image_source, title, overlay_text, output_path="preview.png"):
 
     img = load_image(image_source)
@@ -95,7 +91,6 @@ def create_post(image_source, title, overlay_text, output_path="preview.png"):
 
     draw = ImageDraw.Draw(img)
 
-    # FONTS
     try:
         title_font = ImageFont.truetype(FONT_PATH, 60)
         caption_font = ImageFont.truetype(FONT_PATH, 42)
@@ -106,42 +101,43 @@ def create_post(image_source, title, overlay_text, output_path="preview.png"):
         brand_font = ImageFont.load_default()
 
     # -----------------------------
-    # BRANDING (TOP LEFT)
+    # LOGO
     # -----------------------------
     try:
         if os.path.exists(LOGO_PATH):
             logo = Image.open(LOGO_PATH).convert("RGBA")
             logo.thumbnail((80, 80))
-
             img.paste(logo, (40, 40), logo)
 
             draw.text(
                 (140, 55),
                 "GAMETRAIT",
                 font=brand_font,
-                fill=(255, 255, 255),
+                fill=(255,255,255),
                 stroke_width=1,
-                stroke_fill=(0, 0, 0),
+                stroke_fill=(0,0,0)
             )
-        else:
-            draw.text((40, 50), "GAMETRAIT", font=brand_font, fill=(255, 255, 255))
-    except Exception as e:
-        print("Logo error:", e)
+    except:
+        pass
 
     # -----------------------------
-    # TITLE
-    # -----------------------------
-    y = HEIGHT - 420
-    y = draw_text(draw, title, title_font, 60, y, 28, (255, 255, 255))
-
-    # -----------------------------
-    # OVERLAY CAPTION
+    # DYNAMIC TEXT POSITIONING
     # -----------------------------
     overlay_text = overlay_text[:180]
 
-    draw_text(draw, overlay_text, caption_font, 60, y + 20, 34, (220, 220, 220))
+    title_h = get_text_height(title, title_font, 28)
+    caption_h = get_text_height(overlay_text, caption_font, 34)
 
-    # SAVE
+    total_h = title_h + caption_h + 40
+
+    y_start = HEIGHT - total_h - 60
+
+    y = y_start
+
+    y = draw_text(draw, title, title_font, 60, y, 28, (255,255,255))
+
+    draw_text(draw, overlay_text, caption_font, 60, y + 20, 34, (220,220,220))
+
     img = img.convert("RGB")
     img.save(output_path)
 
