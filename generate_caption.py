@@ -8,15 +8,24 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-def generate_content(title, summary, category="football", context="general"):
+def generate_content(title, summary, category="football", context="general", insight=None):
+
+    insight_text = ""
+
+    if insight:
+        insight_text = f"""
+DATA:
+Home Team: {insight.get("home_team")}
+Away Team: {insight.get("away_team")}
+Home Form: {insight.get("home_form")}
+Away Form: {insight.get("away_form")}
+Home Goals (last 5): {insight.get("home_goals")}
+Away Goals (last 5): {insight.get("away_goals")}
+Prediction: {insight.get("prediction")}
+"""
 
     prompt = f"""
-You are GAMETRAIT — a modern football intelligence system.
-
-Tone:
-- Sharp
-- Insightful
-- No clichés
+You are GAMETRAIT — a football intelligence system.
 
 Write:
 
@@ -27,21 +36,29 @@ SHORT:
 2 lines.
 
 LONG:
-4–5 lines.
+4–5 lines. Analytical.
 
 ARTICLE:
-200 words.
+~200 words.
 
 Context: {context}
+
+{insight_text}
+
 Title: {title}
 Summary: {summary}
 
-If preview:
-- Add prediction
-- Mention tactical edge
+Rules:
+- Do NOT repeat the title
+- Use data if available
+- If prediction = home_strong → lean home
+- If prediction = away_strong → lean away
+- If balanced → highlight key tactical battle
 
-If news:
-- Focus on implications
+Tone:
+- Intelligent
+- Crisp
+- Non-generic
 """
 
     try:
@@ -58,9 +75,7 @@ If news:
 
         overlay, short, long, article = parse(text)
 
-        # -----------------------------
-        # FALLBACKS (NEVER RETURN EMPTY)
-        # -----------------------------
+        # fallback safety
         if not overlay:
             overlay = title[:80]
 
@@ -78,18 +93,17 @@ If news:
     except Exception as e:
         print("OpenAI error:", e)
 
-        # HARD FALLBACK
         return title[:80], title, summary, summary
 
 
 # -----------------------------
-# ROBUST PARSER (FIXED)
+# PARSER
 # -----------------------------
 def parse(text):
     overlay, short, long, article = "", "", "", ""
 
     try:
-        text = text.replace("**", "")  # remove markdown
+        text = text.replace("**", "")
 
         lines = text.split("\n")
         current = None

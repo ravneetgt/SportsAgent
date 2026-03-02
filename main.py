@@ -7,6 +7,7 @@ from generate_caption import generate_content
 from get_image import get_image
 from create_post import create_post
 from push_to_sheet import push_if_new
+from intelligence import enrich_item   # NEW
 
 
 # -----------------------------
@@ -39,33 +40,47 @@ def run():
     all_content = news + fixtures
 
     if not all_content:
-        print("No content found")
+        print("No content")
         return
 
+    # -----------------------------
+    # ADD INTELLIGENCE
+    # -----------------------------
+    enriched = []
+    for item in all_content:
+        enriched.append(enrich_item(item))
+
+    all_content = enriched
+
+    # -----------------------------
+    # PROCESS ITEMS
+    # -----------------------------
     for item in all_content:
 
         try:
             title = item.get("title", "")
             summary = item.get("summary", "")
             context = item.get("context", "news")
+            insight = item.get("insight")
 
             print("Processing:", title)
 
             # -----------------------------
-            # AI CONTENT (SAFE)
+            # GENERATE CONTENT
             # -----------------------------
-            result = generate_content(title, summary, "football", context)
+            result = generate_content(
+                title,
+                summary,
+                "football",
+                context,
+                insight
+            )
 
             if not result or len(result) != 4:
-                print("Invalid AI output → fallback")
-                result = generate_content(title, summary, "football", context)
-
-            if not result or len(result) != 4:
-                print("Invalid AI output → fallback")
+                print("Fallback triggered")
                 overlay, short, long, article = title[:80], title, summary, summary
             else:
                 overlay, short, long, article = result
-   
 
             # -----------------------------
             # IMAGE
@@ -82,7 +97,6 @@ def run():
 
                         create_post(local, title, overlay, final_path)
 
-                        # OPTIONAL upload
                         try:
                             from upload_image import upload_image
                             final_url = upload_image(final_path)
@@ -91,10 +105,10 @@ def run():
                             print("Upload skipped:", e)
 
                     except Exception as e:
-                        print("Post creation error:", e)
+                        print("Image error:", e)
 
             # -----------------------------
-            # PUSH INSTAGRAM
+            # INSTAGRAM
             # -----------------------------
             push_if_new({
                 "Type": "instagram",
@@ -111,7 +125,7 @@ def run():
             })
 
             # -----------------------------
-            # PUSH ARTICLE
+            # ARTICLE
             # -----------------------------
             push_if_new({
                 "Type": "article",
