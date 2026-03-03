@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import os
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, date
 
 from create_post import create_post
 
@@ -15,7 +15,7 @@ WORKSHEET_NAME = "Sheet1"
 st.set_page_config(layout="wide")
 
 # -----------------------------
-# HEADER (FIXED)
+# HEADER
 # -----------------------------
 col_logo, col_title = st.columns([1, 6])
 
@@ -79,11 +79,10 @@ def load_data():
     return records
 
 # -----------------------------
-# UPDATE ROW (FIXED INDEX)
+# UPDATE ROW
 # -----------------------------
 def update_sheet_row(index, caption, status):
     sheet = get_sheet()
-
     row_number = index + 2
 
     sheet.update_cell(row_number, 4, caption)
@@ -92,30 +91,20 @@ def update_sheet_row(index, caption, status):
     st.success(f"Updated row {row_number}")
 
 # -----------------------------
-# FILTERS
+# DATE FORMATTER
 # -----------------------------
-def apply_filters(data, status, category, type_filter):
-    filtered = []
-
-    for row in data:
-        if status != "ALL" and row.get("Status") != status:
-            continue
-
-        if category != "ALL" and row.get("Category") != category:
-            continue
-
-        if type_filter != "ALL" and row.get("Type") != type_filter:
-            continue
-
-        filtered.append(row)
-
-    return filtered
-
 def format_date(ts):
     try:
-        return datetime.fromtimestamp(int(ts)).strftime("%d %b %Y, %I:%M %p")
+        dt = datetime.fromtimestamp(int(ts))
+        return dt.strftime("%d %b %Y • %I:%M %p")
     except:
         return ""
+
+def parse_timestamp(ts):
+    try:
+        return datetime.fromtimestamp(int(ts))
+    except:
+        return None
 
 # -----------------------------
 # MAIN
@@ -127,15 +116,13 @@ if not data:
     st.stop()
 
 # -----------------------------
-# SIDEBAR
+# SIDEBAR FILTERS
 # -----------------------------
 st.sidebar.header("Filters")
 
-status = st.sidebar.selectbox("Status", ["ALL", "PENDING", "APPROVED", "REJECTED"])
-
-category = st.sidebar.selectbox(
-    "Sport",
-    ["ALL"] + sorted(list(set([d.get("Category", "") for d in data])))
+status = st.sidebar.selectbox(
+    "Status",
+    ["ALL", "PENDING", "APPROVED", "REJECTED"]
 )
 
 type_filter = st.sidebar.selectbox(
@@ -143,8 +130,53 @@ type_filter = st.sidebar.selectbox(
     ["ALL", "instagram", "article"]
 )
 
-filtered_data = apply_filters(data, status, category, type_filter)
+# Build list of valid dates
+valid_dates = [
+    parse_timestamp(d.get("Date"))
+    for d in data
+    if parse_timestamp(d.get("Date")) is not None
+]
 
+if valid_dates:
+    min_date = min(valid_dates).date()
+    max_date = max(valid_dates).date()
+else:
+    min_date = date.today()
+    max_date = date.today()
+
+date_range = st.sidebar.date_input(
+    "Date Range",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date
+)
+
+# -----------------------------
+# APPLY FILTERS
+# -----------------------------
+filtered_data = []
+
+for row in data:
+
+    # Status filter
+    if status != "ALL" and row.get("Status") != status:
+        continue
+
+    # Type filter
+    if type_filter != "ALL" and row.get("Type") != type_filter:
+        continue
+
+    # Date filter
+    row_dt = parse_timestamp(row.get("Date"))
+    if row_dt:
+        if not (date_range[0] <= row_dt.date() <= date_range[1]):
+            continue
+
+    filtered_data.append(row)
+
+# -----------------------------
+# TABS
+# -----------------------------
 tab1, tab2 = st.tabs(["📱 Instagram Posts", "📰 Articles"])
 
 # -----------------------------
@@ -168,7 +200,6 @@ with tab1:
         with col2:
             st.subheader(row.get("Title", ""))
 
-            st.write(f"**Category:** {row.get('Category')}")
             st.write(f"**Status:** {row.get('Status')}")
             st.write(f"**Date:** {format_date(row.get('Date'))}")
 
@@ -186,9 +217,10 @@ with tab1:
                     post_path = create_post(
                         image_url,
                         row.get("Title", ""),
-                        caption
+                        caption,
+                        "preview.jpg"
                     )
-                    st.image(post_path, use_container_width=True)
+                    st.image("preview.jpg", use_container_width=True)
 
             with colB:
                 if st.button("Approve", key=f"approve_{real_index}"):
@@ -213,7 +245,6 @@ with tab2:
         if image_url.startswith("http"):
             st.image(image_url, use_container_width=True)
 
-        st.write(f"**Category:** {row.get('Category')}")
         st.write(f"**Status:** {row.get('Status')}")
         st.write(f"**Date:** {format_date(row.get('Date'))}")
 
