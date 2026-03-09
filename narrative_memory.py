@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 
 STORE_PATH = "memory_store.json"
@@ -28,18 +29,54 @@ def save_store(store):
 
 
 # -----------------------------
+# TEAM EXTRACTION (Fallback)
+# -----------------------------
+COMMON_TEAMS = [
+    "Arsenal", "Chelsea", "Liverpool", "Manchester City",
+    "Manchester United", "Tottenham", "Barcelona",
+    "Real Madrid", "Bayern", "Inter", "Milan",
+    "Juventus", "PSG"
+]
+
+
+def extract_teams_from_title(title):
+    found = []
+
+    for team in COMMON_TEAMS:
+        if team.lower() in title.lower():
+            found.append(team)
+
+    if len(found) >= 2:
+        return found[:2]
+
+    return None
+
+
+# -----------------------------
 # UPDATE MEMORY
 # -----------------------------
 def update_memory(item):
 
     store = load_store()
 
-    insight = item.get("insight")
     teams = item.get("teams")
 
-    # Only update if we have teams
-    if not teams or len(teams) != 2:
+    # Fallback extraction from title
+    if not teams:
+        title = item.get("title", "")
+        teams = extract_teams_from_title(title)
+
+    # If still no teams, just ensure file exists and exit
+    if not teams:
+        save_store(store)
         return
+
+    # Ensure exactly 2
+    if len(teams) == 1:
+        teams = [teams[0], teams[0]]
+
+    if len(teams) > 2:
+        teams = teams[:2]
 
     home, away = teams
 
@@ -56,12 +93,13 @@ def update_memory(item):
                 "last_updated": str(datetime.utcnow())
             }
 
+    insight = item.get("insight")
+
     # -----------------------------
-    # UPDATE USING INSIGHT
+    # Structured Update (Fixtures)
     # -----------------------------
     if insight:
 
-        # Approximate trends from last 5 matches
         for team, prefix in [(home, "home"), (away, "away")]:
             team_data = store.get(team)
 
@@ -72,7 +110,6 @@ def update_memory(item):
             if not team_data:
                 continue
 
-            # Update totals
             team_data["matches"] += len(form)
             team_data["wins"] += form.count("W")
             team_data["draws"] += form.count("D")
@@ -81,8 +118,25 @@ def update_memory(item):
             team_data["goals_for"] += gf
             team_data["goals_against"] += ga
 
-            # Track last results
-            team_data["recent_form"] = (team_data["recent_form"] + list(form))[-10:]
+            team_data["recent_form"] = (
+                team_data["recent_form"] + list(form)
+            )[-10:]
+
+            team_data["last_updated"] = str(datetime.utcnow())
+
+            store[team] = team_data
+
+    else:
+        # -----------------------------
+        # Lightweight Update (News)
+        # -----------------------------
+        for team in [home, away]:
+            team_data = store.get(team)
+
+            team_data["matches"] += 1
+            team_data["recent_form"] = (
+                team_data["recent_form"] + ["D"]
+            )[-10:]
 
             team_data["last_updated"] = str(datetime.utcnow())
 
@@ -100,36 +154,32 @@ def get_narrative(item):
 
     teams = item.get("teams")
 
-    if not teams or len(teams) != 2:
-        return ""
+    if not teams:
+        title = item.get("title", "")
+        teams = extract_teams_from_title(title)
 
-    home, away = teams
+    if not teams:
+        return ""
 
     narratives = []
 
-    for team in [home, away]:
+    for team in teams:
 
         data = store.get(team)
-
         if not data:
             continue
 
         form = data.get("recent_form", [])
-
         if len(form) < 5:
             continue
 
         last5 = form[-5:]
-
         wins = last5.count("W")
         losses = last5.count("L")
 
         gf = data.get("goals_for", 0)
         ga = data.get("goals_against", 0)
 
-        # -----------------------------
-        # PATTERNS
-        # -----------------------------
         if wins >= 4:
             narratives.append(f"{team} are building momentum")
 

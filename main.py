@@ -14,10 +14,15 @@ from confidence_engine import compute_confidence
 from narrative_memory import update_memory, get_narrative
 from angle_engine import get_angle
 from editorial_brain import build_editorial_context
-
 from personality_engine import choose_personality
 from format_engine import choose_format
 
+from daily_edge_index import generate_daily_edge_index
+
+
+# --------------------------------------------------
+# IMAGE DOWNLOAD
+# --------------------------------------------------
 
 def download_image(url, path="temp.jpg"):
     try:
@@ -26,10 +31,14 @@ def download_image(url, path="temp.jpg"):
             with open(path, "wb") as f:
                 f.write(res.content)
             return path
-    except:
-        pass
+    except Exception as e:
+        print("Download error:", e)
     return None
 
+
+# --------------------------------------------------
+# PROCESS CONTENT ITEM
+# --------------------------------------------------
 
 def process_item(item):
 
@@ -38,30 +47,42 @@ def process_item(item):
     context = item.get("context", "news")
     score = item.get("score", 0)
 
+    print(f"\n--- ({score}) ---")
+    print(title)
+
     # -----------------------------
-    # CORE ENRICHMENT
+    # ENRICHMENT + MEMORY
     # -----------------------------
+    try:
+        item = enrich_item(item)
+        item = compute_confidence(item)
+
+        update_memory(item)
+        item["narrative"] = get_narrative(item)
+
+    except Exception as e:
+        print("Enrich error:", e)
+
     insight = item.get("insight")
     confidence = item.get("confidence")
     narrative = item.get("narrative", "")
 
     # -----------------------------
-    # ANGLE + EDITORIAL
+    # EDITORIAL
     # -----------------------------
-    item["angle"] = get_angle(item)
-    editorial = build_editorial_context(item)
+    try:
+        item["angle"] = get_angle(item)
+        editorial = build_editorial_context(item)
+    except:
+        editorial = {}
 
-    # -----------------------------
-    # NEW LAYERS
-    # -----------------------------
     personality = choose_personality(item)
     fmt = choose_format(item)
 
-    print(f"\n--- ({score}) [{personality}] [{fmt}] ---")
-    print(title)
+    print(f"[{personality}] [{fmt}]")
 
     # -----------------------------
-    # GENERATE
+    # AI GENERATION
     # -----------------------------
     overlay, short, long, article = generate_content(
         title,
@@ -77,23 +98,24 @@ def process_item(item):
     )
 
     # -----------------------------
-    # IMAGE
+    # IMAGE PROCESSING
     # -----------------------------
     image_url = get_image(item)
     final_url = image_url
 
     if image_url:
         local = download_image(image_url)
+
         if local:
             try:
                 create_post(local, title, overlay, "post.jpg")
                 from upload_image import upload_image
                 final_url = upload_image("post.jpg")
-            except:
-                pass
+            except Exception as e:
+                print("Image error:", e)
 
     # -----------------------------
-    # PUSH
+    # PUSH INSTAGRAM (NO edge_text here)
     # -----------------------------
     push_if_new({
         "Type": "instagram",
@@ -109,6 +131,9 @@ def process_item(item):
         "Date": int(time.time())
     })
 
+    # -----------------------------
+    # PUSH ARTICLE
+    # -----------------------------
     push_if_new({
         "Type": "article",
         "Category": "football",
@@ -126,35 +151,51 @@ def process_item(item):
     print("✓ Done")
 
 
+# --------------------------------------------------
+# MAIN RUNNER
+# --------------------------------------------------
+
 def run():
 
     print("=== START ===")
+
+    # --------------------------------------------------
+    # DAILY GAMETRAIT EVI™ FEATURE
+    # --------------------------------------------------
+
+    overlay, edge_text = generate_daily_edge_index()
+
+    if edge_text:
+        push_if_new({
+            "Type": "instagram",
+            "Category": "football",
+            "Title": "GAMETRAIT EVI™ — Daily Ranking",
+            "Short Caption": "Edge Volatility Index",
+            "Long Caption": edge_text,
+            "Article": "",
+            "Image URL": "",
+            "Status": "PENDING",
+            "Context": "daily_feature",
+            "Score": 99,
+            "Date": int(time.time())
+        })
+
+    # --------------------------------------------------
+    # FETCH CONTENT
+    # --------------------------------------------------
 
     news = fetch_news()
     fixtures = fetch_fixtures()
 
     all_content = news + fixtures
 
-    enriched = []
-
-    for item in all_content:
-        try:
-            item = enrich_item(item)
-            item = compute_confidence(item)
-
-            update_memory(item)
-            item["narrative"] = get_narrative(item)
-
-            enriched.append(item)
-
-        except Exception as e:
-            print("Enrich error:", e)
-            enriched.append(item)
-
-    ranked = rank_news(enriched)
+    ranked = rank_news(all_content)
 
     for item in ranked:
-        process_item(item)
+        try:
+            process_item(item)
+        except Exception as e:
+            print("PROCESS ERROR:", e)
 
     print("=== COMPLETE ===")
 

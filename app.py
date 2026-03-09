@@ -5,6 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, date
 
 from create_post import create_post
+from instagram_publisher import publish_instagram   # NEW
 
 # -----------------------------
 # CONFIG
@@ -122,7 +123,7 @@ st.sidebar.header("Filters")
 
 status = st.sidebar.selectbox(
     "Status",
-    ["ALL", "PENDING", "APPROVED", "REJECTED"]
+    ["ALL", "PENDING", "POSTED", "REJECTED"]
 )
 
 type_filter = st.sidebar.selectbox(
@@ -130,7 +131,6 @@ type_filter = st.sidebar.selectbox(
     ["ALL", "instagram", "article"]
 )
 
-# Build list of valid dates
 valid_dates = [
     parse_timestamp(d.get("Date"))
     for d in data
@@ -158,15 +158,12 @@ filtered_data = []
 
 for row in data:
 
-    # Status filter
     if status != "ALL" and row.get("Status") != status:
         continue
 
-    # Type filter
     if type_filter != "ALL" and row.get("Type") != type_filter:
         continue
 
-    # Date filter
     row_dt = parse_timestamp(row.get("Date"))
     if row_dt:
         if not (date_range[0] <= row_dt.date() <= date_range[1]):
@@ -212,22 +209,52 @@ with tab1:
 
             colA, colB, colC = st.columns(3)
 
+            # -----------------------------
+            # PREVIEW
+            # -----------------------------
             with colA:
                 if st.button("Preview", key=f"preview_{real_index}"):
+
                     post_path = create_post(
                         image_url,
                         row.get("Title", ""),
                         caption,
                         "preview.jpg"
                     )
+
                     st.image("preview.jpg", use_container_width=True)
 
+            # -----------------------------
+            # APPROVE + POST
+            # -----------------------------
             with colB:
-                if st.button("Approve", key=f"approve_{real_index}"):
-                    update_sheet_row(real_index, caption, "APPROVED")
 
+                if st.button("Approve & Post", key=f"approve_{real_index}"):
+
+                    with st.spinner("Publishing to Instagram..."):
+
+                        try:
+
+                            post_id = publish_instagram(
+                                image_url,
+                                caption
+                            )
+
+                            update_sheet_row(real_index, caption, "POSTED")
+
+                            st.success("Instagram post published")
+                            st.write("Post ID:", post_id)
+
+                        except Exception as e:
+
+                            st.error(f"Instagram publish failed: {e}")
+
+            # -----------------------------
+            # REJECT
+            # -----------------------------
             with colC:
                 if st.button("Reject", key=f"reject_{real_index}"):
+
                     update_sheet_row(real_index, caption, "REJECTED")
 
 # -----------------------------
@@ -237,6 +264,7 @@ with tab2:
     articles = [d for d in filtered_data if d.get("Type") == "article"]
 
     for row in articles[::-1]:
+
         st.divider()
 
         st.subheader(row.get("Title", ""))
