@@ -7,6 +7,9 @@ from datetime import datetime, date
 from create_post import create_post
 from instagram_publisher import publish_instagram   # NEW
 
+
+st.write("IG_ID:", st.secrets.get("IG_BUSINESS_ID"))
+
 # -----------------------------
 # CONFIG
 # -----------------------------

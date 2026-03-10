@@ -1,8 +1,19 @@
 import os
 import requests
+import streamlit as st
+from dotenv import load_dotenv
 
-IG_ID = os.getenv("IG_BUSINESS_ID")
-ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN")
+load_dotenv()
+
+def get_secret(name):
+    if name in os.environ:
+        return os.environ.get(name)
+    if name in st.secrets:
+        return st.secrets[name]
+    return None
+
+IG_ID = get_secret("IG_BUSINESS_ID")
+ACCESS_TOKEN = get_secret("IG_ACCESS_TOKEN")
 
 
 def create_container(image_url, caption):
@@ -43,9 +54,12 @@ def publish_container(creation_id):
 
 
 def publish_instagram(image_url, caption):
+    print("IG_ID:", IG_ID)
+    print("TOKEN exists:", ACCESS_TOKEN is not None)
+    print("IMAGE URL:", image_url)
 
     creation_id = create_container(image_url, caption)
 
     post_id = publish_container(creation_id)
 
-    return post_id
+    return post_id  
