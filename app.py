@@ -9,6 +9,7 @@ from instagram_publisher import publish_instagram   # NEW
 
 
 st.write("IG_ID:", st.secrets.get("IG_BUSINESS_ID"))
+st.write("ALL SECRETS:", dict(st.secrets))
 
 # -----------------------------
 # CONFIG
