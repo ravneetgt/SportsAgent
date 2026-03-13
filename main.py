@@ -19,14 +19,10 @@ from format_engine import choose_format
 from predictive_edge_engine import compute_edge
 from daily_edge_index import generate_daily_edge_index
 
-# NEW INTELLIGENCE SYSTEM
 from team_intelligence_engine import refresh_teams
 from league_intelligence import build_power_post
 
 
-# -------------------------------------
-# IMAGE DOWNLOADER
-# -------------------------------------
 def download_image(url, path="temp.jpg"):
 
     try:
@@ -46,9 +42,6 @@ def download_image(url, path="temp.jpg"):
     return None
 
 
-# -------------------------------------
-# PROCESS SINGLE CONTENT ITEM
-# -------------------------------------
 def process_item(item):
 
     title = item.get("title", "")
@@ -61,16 +54,10 @@ def process_item(item):
 
     try:
 
-        # enrich using football API
         item = enrich_item(item)
-
-        # prediction probabilities
         item = compute_confidence(item)
 
-        # update team memory
         update_memory(item)
-
-        # narrative signals
         item["narrative"] = get_narrative(item)
 
     except Exception as e:
@@ -82,9 +69,6 @@ def process_item(item):
 
     teams = item.get("teams")
 
-    # -------------------------------------
-    # EDGE MODEL
-    # -------------------------------------
     if teams and len(teams) == 2:
 
         edge = compute_edge(
@@ -95,26 +79,14 @@ def process_item(item):
 
         item["edge"] = edge
 
-    # -------------------------------------
-    # EDITORIAL CONTEXT
-    # -------------------------------------
     try:
-
         editorial = build_editorial_context(item)
-
-    except Exception as e:
-
-        print("Editorial error:", e)
+    except:
         editorial = {}
 
     personality = choose_personality(item)
     fmt = choose_format(item)
 
-    print(f"[{personality}] [{fmt}]")
-
-    # -------------------------------------
-    # AI CONTENT
-    # -------------------------------------
     overlay, short, long, article = generate_content(
         title,
         summary,
@@ -129,9 +101,6 @@ def process_item(item):
         item.get("edge")
     )
 
-    # -------------------------------------
-    # IMAGE GENERATION
-    # -------------------------------------
     image_url = get_image(item)
     final_url = image_url
 
@@ -151,10 +120,6 @@ def process_item(item):
 
             except Exception as e:
                 print("Image error:", e)
-
-    # -------------------------------------
-    # GOOGLE SHEETS OUTPUT
-    # -------------------------------------
 
     context_string = f"{context} | {personality} | {fmt}"
 
@@ -189,43 +154,42 @@ def process_item(item):
     print("✓ Done")
 
 
-# -------------------------------------
-# MAIN ENGINE
-# -------------------------------------
 def run():
 
     print("=== START ===")
 
-    # -------------------------------------
-    # REFRESH TEAM INTELLIGENCE DATABASE
-    # -------------------------------------
     try:
-
-        print("Refreshing team intelligence database")
-
         refresh_teams()
-
     except Exception as e:
-
         print("Team intelligence refresh failed:", e)
 
-    # -------------------------------------
-    # DAILY EDGE INDEX
-    # -------------------------------------
+    # -------- DAILY EDGE INDEX --------
+
     try:
 
-        overlay, edge_text = generate_daily_edge_index()
+        overlay, visual, caption, article = generate_daily_edge_index()
 
-        if edge_text:
+        if visual:
+
+            create_post(
+                None,
+                "EDGE VOLATILITY INDEX",
+                visual,
+                "evi_post.jpg"
+            )
+
+            from upload_image import upload_image
+
+            image_url = upload_image("evi_post.jpg")
 
             push_if_new({
                 "Type": "instagram",
                 "Category": "football",
                 "Title": "GAMETRAIT — Daily Edge Intelligence",
                 "Short Caption": overlay,
-                "Long Caption": edge_text,
-                "Article": "",
-                "Image URL": "",
+                "Long Caption": caption,
+                "Article": article,
+                "Image URL": image_url,
                 "Status": "PENDING",
                 "Context": "daily_feature | analyst | breakdown",
                 "Score": 99,
@@ -233,12 +197,10 @@ def run():
             })
 
     except Exception as e:
-
         print("Edge index error:", e)
 
-    # -------------------------------------
-    # GLOBAL FORM INDEX
-    # -------------------------------------
+    # -------- GLOBAL FORM INDEX --------
+
     try:
 
         overlay, text = build_power_post()
@@ -260,12 +222,7 @@ def run():
             })
 
     except Exception as e:
-
         print("Form index error:", e)
-
-    # -------------------------------------
-    # FETCH CONTENT SOURCES
-    # -------------------------------------
 
     news = fetch_news()
     fixtures = fetch_fixtures()
@@ -276,25 +233,16 @@ def run():
 
     print("Total ranked items:", len(ranked))
 
-    # -------------------------------------
-    # PROCESS EACH ITEM
-    # -------------------------------------
     for item in ranked:
 
         try:
-
             process_item(item)
-
         except Exception as e:
-
             print("PROCESS ERROR:", e)
 
     print("=== COMPLETE ===")
 
 
-# -------------------------------------
-# ENTRYPOINT
-# -------------------------------------
 if __name__ == "__main__":
 
     run()

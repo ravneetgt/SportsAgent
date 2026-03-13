@@ -9,9 +9,6 @@ HISTORY_PATH = "evi_history.json"
 API_KEY = os.getenv("FOOTBALL_API_KEY")
 BASE_URL = "https://api.football-data.org/v4"
 
-# -------------------------------------
-# TEAMS THAT SHOULD ALWAYS BE TRACKED
-# -------------------------------------
 CORE_TEAMS = [
     "Real Madrid",
     "Barcelona",
@@ -26,9 +23,6 @@ CORE_TEAMS = [
 ]
 
 
-# -------------------------------------
-# API HELPER
-# -------------------------------------
 def api_get(endpoint):
 
     headers = {"X-Auth-Token": API_KEY}
@@ -45,9 +39,6 @@ def api_get(endpoint):
     return None
 
 
-# -------------------------------------
-# STORE LOADERS
-# -------------------------------------
 def load_store():
 
     if not os.path.exists(STORE_PATH):
@@ -90,9 +81,6 @@ def save_history(data):
         pass
 
 
-# -------------------------------------
-# FETCH TEAM DATA IF MISSING
-# -------------------------------------
 def fetch_team_data(team_name):
 
     teams = api_get("/teams")
@@ -152,9 +140,6 @@ def fetch_team_data(team_name):
     }
 
 
-# -------------------------------------
-# SIGNAL COMPONENTS
-# -------------------------------------
 def momentum_score(form):
 
     weights = [5, 4, 3, 2, 1]
@@ -166,10 +151,8 @@ def momentum_score(form):
 
         if result == "W":
             score += weights[i] * 3
-
         elif result == "D":
             score += weights[i]
-
         elif result == "L":
             score -= weights[i] * 2
 
@@ -189,16 +172,12 @@ def instability_score(form):
     swings = 0
 
     for i in range(1, len(form)):
-
         if form[i] != form[i - 1]:
             swings += 1
 
     return swings * 1.2
 
 
-# -------------------------------------
-# EVI CALCULATION
-# -------------------------------------
 def compute_evi(team):
 
     form = team.get("recent_form", [])
@@ -219,17 +198,11 @@ def compute_evi(team):
     return round(evi, 2)
 
 
-# -------------------------------------
-# DAILY REPORT
-# -------------------------------------
 def generate_daily_edge_index():
 
     store = load_store()
     history = load_history()
 
-    # -------------------------------------
-    # ENSURE CORE TEAMS EXIST
-    # -------------------------------------
     for team in CORE_TEAMS:
 
         if team not in store:
@@ -243,9 +216,6 @@ def generate_daily_edge_index():
 
     save_store(store)
 
-    # -------------------------------------
-    # COMPUTE SCORES
-    # -------------------------------------
     scores = []
 
     for team, data in store.items():
@@ -256,87 +226,54 @@ def generate_daily_edge_index():
             scores.append((team, evi))
 
     if not scores:
-        return None, None
+        return None, None, None
 
     scores.sort(key=lambda x: x[1], reverse=True)
 
     top5 = scores[:5]
 
-    yesterday = history.get("latest", [])
+    # -------- VISUAL TEXT FOR INSTAGRAM CARD --------
 
-    deltas = {}
-
-    if yesterday:
-
-        ymap = dict(yesterday)
-
-        for team, score in top5:
-
-            prev = ymap.get(team)
-
-            if prev is not None:
-                deltas[team] = round(score - prev, 2)
-
-    # -------------------------------------
-    # MOVEMENT DETECTION
-    # -------------------------------------
-    biggest_up = None
-    biggest_down = None
-
-    max_up = -999
-    max_down = 999
-
-    for team, delta in deltas.items():
-
-        if delta > max_up:
-            max_up = delta
-            biggest_up = team
-
-        if delta < max_down:
-            max_down = delta
-            biggest_down = team
-
-    # -------------------------------------
-    # BUILD REPORT
-    # -------------------------------------
-    lines = []
+    visual_lines = []
 
     for i, (team, score) in enumerate(top5):
 
-        delta = deltas.get(team)
+        visual_lines.append(f"{i+1}. {team:<15} {score}")
 
-        if delta is None:
-            change = "NEW"
-        elif delta > 0:
-            change = f"+{delta}"
-        elif delta < 0:
-            change = f"{delta}"
-        else:
-            change = "0"
+    visual_text = "\n".join(visual_lines)
 
-        lines.append(f"{i+1}. {team} ({score}) {change}")
+    # -------- CAPTION TEXT --------
 
-    leader = top5[0]
+    caption_lines = []
 
-    commentary = []
+    for i, (team, score) in enumerate(top5):
+        caption_lines.append(f"{i+1}. {team} ({score})")
 
-    commentary.append(f"Edge leader: {leader[0]} ({leader[1]}).")
+    caption = "\n".join(caption_lines)
 
-    if biggest_up:
-        commentary.append(f"Momentum surge: {biggest_up} (+{max_up}).")
+    caption += "\n\nThe Edge Volatility Index measures momentum, control and instability across elite clubs."
 
-    if biggest_down:
-        commentary.append(f"Volatility risk: {biggest_down} ({max_down}).")
+    # -------- ARTICLE --------
 
-    commentary.append("Momentum shifts reveal where pressure is building.")
+    leader = top5[0][0]
 
-    final_text = "\n".join(lines) + "\n\n" + "\n".join(commentary)
+    article = f"""
+The Gametrait Edge Volatility Index tracks which clubs currently hold the strongest competitive momentum.
+
+Unlike traditional standings, the EVI blends recent form, goal control and volatility patterns to detect where pressure and momentum are building across elite European teams.
+
+Today's leader is {leader}, whose recent performances place them at the top of the volatility model.
+
+Momentum indicators suggest several clubs are beginning to separate from the pack, while instability signals reveal which teams may be entering unpredictable phases.
+
+By tracking volatility rather than simply results, the index often surfaces shifts in competitive power before they appear in league tables.
+"""
 
     history["latest"] = top5
     history[datetime.utcnow().strftime("%Y-%m-%d")] = top5
 
     save_history(history)
 
-    overlay = "GAMETRAIT EDGE REPORT"
+    overlay = "EDGE VOLATILITY INDEX"
 
-    return overlay, final_text
+    return overlay, visual_text, caption, article
