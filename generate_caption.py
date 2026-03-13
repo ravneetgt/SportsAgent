@@ -17,7 +17,8 @@ def generate_content(
     confidence=None,
     narrative=None,
     personality="analyst",
-    fmt="standard"
+    fmt="standard",
+    edge=None
 ):
 
     personality_rules = {
@@ -56,6 +57,9 @@ NARRATIVE:
 EDITORIAL:
 {editorial}
 
+EDGE MODEL:
+{edge}
+
 Title: {title}
 Summary: {summary}
 
@@ -91,7 +95,6 @@ If insider:
 
 If fan:
 - Keep it punchy
-
 """
 
     try:
@@ -112,6 +115,7 @@ If fan:
 
 
 def parse(text):
+
     overlay, short, long, article = "", "", "", ""
 
     text = text.replace("**", "")
@@ -120,6 +124,7 @@ def parse(text):
     current = None
 
     for line in lines:
+
         clean = line.strip()
 
         if clean.startswith("OVERLAY:"):
@@ -139,12 +144,16 @@ def parse(text):
             article = clean.replace("ARTICLE:", "").strip()
 
         else:
+
             if current == "overlay":
                 overlay += " " + clean
+
             elif current == "short":
                 short += " " + clean
+
             elif current == "long":
                 long += " " + clean
+
             elif current == "article":
                 article += " " + clean
 
