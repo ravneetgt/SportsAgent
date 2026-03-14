@@ -1,79 +1,27 @@
-import os
-import json
-import requests
 from datetime import datetime
-
-API_KEY = os.getenv("FOOTBALL_API_KEY")
-BASE_URL = "https://api.football-data.org/v4"
-
-STORE_PATH = "memory_store.json"
+from football_api import api_get, get_team_id
+from store import load_store, save_store
 
 
-def api_get(endpoint):
-
-    headers = {"X-Auth-Token": API_KEY}
-
-    try:
-        res = requests.get(BASE_URL + endpoint, headers=headers, timeout=10)
-
-        if res.status_code == 200:
-            return res.json()
-
-    except Exception as e:
-        print("API error:", e)
-
-    return None
-
-
-def load_store():
-
-    if not os.path.exists(STORE_PATH):
-        return {}
-
-    try:
-        with open(STORE_PATH, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-
-def save_store(store):
-
-    try:
-        with open(STORE_PATH, "w") as f:
-            json.dump(store, f)
-    except Exception as e:
-        print("Save error:", e)
-
-
-def update_team(team_id, team_name):
-
-    data = api_get(f"/teams/{team_id}/matches?limit=10")
+def update_team(team_id: int, team_name: str) -> dict | None:
+    data = api_get(f"/teams/{team_id}/matches?limit=10&status=FINISHED")
 
     if not data:
         return None
 
-    matches = data.get("matches", [])
-
     form = []
-    gf = 0
-    ga = 0
+    gf   = 0
+    ga   = 0
 
-    for m in matches:
-
+    for m in data.get("matches", []):
         score = m.get("score", {}).get("fullTime", {})
 
         if score.get("home") is None:
             continue
 
-        is_home = m["homeTeam"]["id"] == team_id
-
-        if is_home:
-            goals_for = score["home"]
-            goals_against = score["away"]
-        else:
-            goals_for = score["away"]
-            goals_against = score["home"]
+        is_home     = m["homeTeam"]["id"] == team_id
+        goals_for   = score["home"] if is_home else score["away"]
+        goals_against = score["away"] if is_home else score["home"]
 
         gf += goals_for
         ga += goals_against
@@ -85,34 +33,47 @@ def update_team(team_id, team_name):
         else:
             form.append("L")
 
+    if not form:
+        return None
+
     return {
-        "team": team_name,
-        "recent_form": form,
-        "goals_for": gf,
+        "recent_form":   form,
+        "goals_for":     gf,
         "goals_against": ga,
-        "updated": str(datetime.utcnow())
+        "mention_count": 0,
+        "last_seen":     str(datetime.utcnow()),
+        "last_insight_hash": None
     }
 
 
 def refresh_teams():
-
+    """
+    Fetches up to 40 teams from the API and writes fresh match data
+    to memory_store.json. Only overwrites form/goal fields — preserves
+    mention_count and last_insight_hash set by narrative_memory.
+    Uses /teams (free tier). /competitions/{comp}/teams requires paid plan.
+    """
     store = load_store()
 
-    teams = api_get("/teams")
-
-    if not teams:
+    data = api_get("/teams")
+    if not data:
+        print("refresh_teams: could not fetch team list")
         return
 
-    for team in teams.get("teams", [])[:40]:
-
+    for team in data.get("teams", [])[:40]:
         name = team["name"]
-        tid = team["id"]
+        tid  = team["id"]
 
         print("Updating", name)
 
-        data = update_team(tid, name)
+        updated = update_team(tid, name)
+        if not updated:
+            continue
 
-        if data:
-            store[name] = data
+        existing = store.get(name, {})
+
+        # Merge: keep narrative_memory fields, overwrite match data
+        existing.update(updated)
+        store[name] = existing
 
     save_store(store)

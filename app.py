@@ -1,21 +1,10 @@
 import streamlit as st
-import gspread
 import os
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, date
 
 from create_post import create_post
-from instagram_publisher import publish_instagram   # NEW
-
-
-st.write("IG_ID:", st.secrets.get("IG_BUSINESS_ID"))
-st.write("ALL SECRETS:", dict(st.secrets))
-
-# -----------------------------
-# CONFIG
-# -----------------------------
-SPREADSHEET_ID = "1eQwoa3etxf3g82jZop50lt598NJRCZ2bHRUUMQDsSOw"
-WORKSHEET_NAME = "Sheet1"
+from instagram_publisher import publish_instagram
+from sheets_client import get_sheet
 
 st.set_page_config(layout="wide")
 
@@ -34,60 +23,31 @@ with col_title:
 st.markdown("---")
 
 # -----------------------------
-# AUTH
-# -----------------------------
-def get_creds():
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    if "gcp_service_account" in st.secrets:
-        return ServiceAccountCredentials.from_json_keyfile_dict(
-            st.secrets["gcp_service_account"], scope
-        )
-
-    if os.path.exists("credentials.json"):
-        return ServiceAccountCredentials.from_json_keyfile_name(
-            "credentials.json", scope
-        )
-
-    raise Exception("No credentials found")
-
-
-def get_sheet():
-    creds = get_creds()
-    client = gspread.authorize(creds)
-    return client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
-
-# -----------------------------
 # LOAD DATA
 # -----------------------------
 @st.cache_data(ttl=30)
 def load_data():
     sheet = get_sheet()
-    data = sheet.get_all_values()
+    data  = sheet.get_all_values()
 
     if len(data) < 2:
         return []
 
     headers = [h if h else f"col_{i}" for i, h in enumerate(data[0])]
-    rows = data[1:]
 
     records = []
-    for row in rows:
-        item = {}
-        for i, h in enumerate(headers):
-            item[h] = row[i] if i < len(row) else ""
+    for row in data[1:]:
+        item = {h: (row[i] if i < len(row) else "") for i, h in enumerate(headers)}
         records.append(item)
 
     return records
+
 
 # -----------------------------
 # UPDATE ROW
 # -----------------------------
 def update_sheet_row(index, caption, status):
-    sheet = get_sheet()
+    sheet      = get_sheet()
     row_number = index + 2
 
     sheet.update_cell(row_number, 4, caption)
@@ -95,21 +55,23 @@ def update_sheet_row(index, caption, status):
 
     st.success(f"Updated row {row_number}")
 
+
 # -----------------------------
-# DATE FORMATTER
+# DATE HELPERS
 # -----------------------------
 def format_date(ts):
     try:
-        dt = datetime.fromtimestamp(int(ts))
-        return dt.strftime("%d %b %Y • %I:%M %p")
-    except:
+        return datetime.fromtimestamp(int(ts)).strftime("%d %b %Y • %I:%M %p")
+    except Exception:
         return ""
+
 
 def parse_timestamp(ts):
     try:
         return datetime.fromtimestamp(int(ts))
-    except:
+    except Exception:
         return None
+
 
 # -----------------------------
 # MAIN
@@ -125,28 +87,16 @@ if not data:
 # -----------------------------
 st.sidebar.header("Filters")
 
-status = st.sidebar.selectbox(
-    "Status",
-    ["ALL", "PENDING", "POSTED", "REJECTED"]
-)
+status      = st.sidebar.selectbox("Status",       ["ALL", "PENDING", "POSTED", "REJECTED"])
+type_filter = st.sidebar.selectbox("Content Type", ["ALL", "instagram", "article"])
 
-type_filter = st.sidebar.selectbox(
-    "Content Type",
-    ["ALL", "instagram", "article"]
-)
-
-valid_dates = [
-    parse_timestamp(d.get("Date"))
-    for d in data
-    if parse_timestamp(d.get("Date")) is not None
-]
+valid_dates = [parse_timestamp(d.get("Date")) for d in data if parse_timestamp(d.get("Date"))]
 
 if valid_dates:
     min_date = min(valid_dates).date()
     max_date = max(valid_dates).date()
 else:
-    min_date = date.today()
-    max_date = date.today()
+    min_date = max_date = date.today()
 
 date_range = st.sidebar.date_input(
     "Date Range",
@@ -161,17 +111,14 @@ date_range = st.sidebar.date_input(
 filtered_data = []
 
 for row in data:
-
-    if status != "ALL" and row.get("Status") != status:
+    if status      != "ALL" and row.get("Status") != status:
         continue
-
-    if type_filter != "ALL" and row.get("Type") != type_filter:
+    if type_filter != "ALL" and row.get("Type")   != type_filter:
         continue
 
     row_dt = parse_timestamp(row.get("Date"))
-    if row_dt:
-        if not (date_range[0] <= row_dt.date() <= date_range[1]):
-            continue
+    if row_dt and not (date_range[0] <= row_dt.date() <= date_range[1]):
+        continue
 
     filtered_data.append(row)
 
@@ -200,8 +147,8 @@ with tab1:
 
         with col2:
             st.subheader(row.get("Title", ""))
-
             st.write(f"**Status:** {row.get('Status')}")
+            st.write(f"**Score:** {row.get('Score')}")
             st.write(f"**Date:** {format_date(row.get('Date'))}")
 
             caption = st.text_area(
@@ -213,52 +160,24 @@ with tab1:
 
             colA, colB, colC = st.columns(3)
 
-            # -----------------------------
-            # PREVIEW
-            # -----------------------------
             with colA:
                 if st.button("Preview", key=f"preview_{real_index}"):
-
-                    post_path = create_post(
-                        image_url,
-                        row.get("Title", ""),
-                        caption,
-                        "preview.jpg"
-                    )
-
+                    create_post(image_url, row.get("Title", ""), caption, "preview.jpg")
                     st.image("preview.jpg", use_container_width=True)
 
-            # -----------------------------
-            # APPROVE + POST
-            # -----------------------------
             with colB:
-
                 if st.button("Approve & Post", key=f"approve_{real_index}"):
-
                     with st.spinner("Publishing to Instagram..."):
-
                         try:
-
-                            post_id = publish_instagram(
-                                image_url,
-                                caption
-                            )
-
+                            post_id = publish_instagram(image_url, caption)
                             update_sheet_row(real_index, caption, "POSTED")
-
                             st.success("Instagram post published")
                             st.write("Post ID:", post_id)
-
                         except Exception as e:
-
                             st.error(f"Instagram publish failed: {e}")
 
-            # -----------------------------
-            # REJECT
-            # -----------------------------
             with colC:
                 if st.button("Reject", key=f"reject_{real_index}"):
-
                     update_sheet_row(real_index, caption, "REJECTED")
 
 # -----------------------------
@@ -268,9 +187,7 @@ with tab2:
     articles = [d for d in filtered_data if d.get("Type") == "article"]
 
     for row in articles[::-1]:
-
         st.divider()
-
         st.subheader(row.get("Title", ""))
 
         image_url = row.get("Image URL", "")
@@ -279,6 +196,5 @@ with tab2:
 
         st.write(f"**Status:** {row.get('Status')}")
         st.write(f"**Date:** {format_date(row.get('Date'))}")
-
         st.markdown("### Article")
         st.write(row.get("Article", ""))

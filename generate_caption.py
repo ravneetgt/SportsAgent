@@ -20,20 +20,19 @@ def generate_content(
     fmt="standard",
     edge=None
 ):
-
     personality_rules = {
-        "analyst": "Calm, structured, tactical.",
-        "insider": "Subtle, knowing, like dressing-room insight.",
+        "analyst":    "Calm, structured, tactical.",
+        "insider":    "Subtle, knowing, like dressing-room insight.",
         "contrarian": "Challenge common views.",
-        "cultural": "Narrative, cinematic, emotional restraint.",
-        "fan": "Raw, emotional, punchy."
+        "cultural":   "Narrative, cinematic, emotional restraint.",
+        "fan":        "Raw, emotional, punchy."
     }
 
     format_rules = {
-        "standard": "Balanced output.",
-        "quick_take": "Short, sharp, fewer words.",
-        "prediction": "Lean on probabilities and match outcome.",
-        "breakdown": "More analysis in LONG and ARTICLE."
+        "standard":    "Balanced output.",
+        "quick_take":  "Short, sharp, fewer words.",
+        "prediction":  "Lean on probabilities and match outcome.",
+        "breakdown":   "More analysis in LONG and ARTICLE."
     }
 
     prompt = f"""
@@ -101,12 +100,11 @@ If fan:
         res = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            temperature=1.0,
+            temperature=0.7,
             max_tokens=700,
         )
 
         text = res.choices[0].message.content.strip()
-
         return parse(text)
 
     except Exception as e:
@@ -114,47 +112,37 @@ If fan:
         return title[:80], title, summary, summary
 
 
-def parse(text):
+def parse(text: str) -> tuple:
+    overlay, short, long_cap, article = "", "", "", ""
 
-    overlay, short, long, article = "", "", "", ""
-
-    text = text.replace("**", "")
+    text  = text.replace("**", "")
     lines = text.split("\n")
 
     current = None
 
     for line in lines:
-
         clean = line.strip()
 
         if clean.startswith("OVERLAY:"):
             current = "overlay"
             overlay = clean.replace("OVERLAY:", "").strip()
-
         elif clean.startswith("SHORT:"):
             current = "short"
             short = clean.replace("SHORT:", "").strip()
-
         elif clean.startswith("LONG:"):
             current = "long"
-            long = clean.replace("LONG:", "").strip()
-
+            long_cap = clean.replace("LONG:", "").strip()
         elif clean.startswith("ARTICLE:"):
             current = "article"
             article = clean.replace("ARTICLE:", "").strip()
-
         else:
-
             if current == "overlay":
-                overlay += " " + clean
-
+                overlay  += " " + clean
             elif current == "short":
-                short += " " + clean
-
+                short    += " " + clean
             elif current == "long":
-                long += " " + clean
-
+                long_cap += " " + clean
             elif current == "article":
-                article += " " + clean
+                article  += " " + clean
 
-    return overlay.strip(), short.strip(), long.strip(), article.strip()
+    return overlay.strip(), short.strip(), long_cap.strip(), article.strip()

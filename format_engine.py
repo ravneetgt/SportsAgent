@@ -1,40 +1,29 @@
 import random
 
-
 FORMATS = [
-    "standard",       # current format
-    "quick_take",     # short, sharp
-    "prediction",     # % driven
-    "breakdown",      # analysis heavy
-    "carousel"        # multi-slide (future)
+    "standard",    # balanced output
+    "quick_take",  # short, sharp
+    "prediction",  # probability-driven
+    "breakdown",   # analysis-heavy
 ]
 
 
-def choose_format(item):
-
-    context = item.get("context", "")
-    score = item.get("score", 0)
+def choose_format(item: dict) -> str:
+    context    = item.get("context", "")
+    score      = item.get("score", 0)
     confidence = item.get("confidence")
 
-    # -----------------------------
-    # PREVIEW → PREDICTION
-    # -----------------------------
+    # Fixture previews → prediction format
     if context == "preview":
         return "prediction"
 
-    # -----------------------------
-    # HIGH SCORE → BREAKDOWN
-    # -----------------------------
-    if score > 40:
-        return "breakdown"
-
-    # -----------------------------
-    # HIGH CONFIDENCE → PREDICTION
-    # -----------------------------
+    # High confidence match → prediction
     if confidence and confidence.get("level") == "high":
         return "prediction"
 
-    # -----------------------------
-    # DEFAULT MIX
-    # -----------------------------
+    # High scoring item → breakdown
+    # Threshold lowered from 40 to 25 to match rank_news scoring reality
+    if score > 25:
+        return "breakdown"
+
     return random.choice(["standard", "quick_take"])
