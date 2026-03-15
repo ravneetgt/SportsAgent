@@ -3,7 +3,9 @@ from sheets_client import get_sheet
 
 
 def push_if_new(row):
+
     try:
+
         sheet = get_sheet()
 
         # -----------------------------
@@ -12,6 +14,7 @@ def push_if_new(row):
         existing = sheet.get_all_records()
 
         for r in existing:
+
             if (
                 r.get("Title") == row.get("Title")
                 and r.get("Type") == row.get("Type")
@@ -23,7 +26,12 @@ def push_if_new(row):
         # BUILD ROW
         # -----------------------------
         values = [
+
             row.get("Type", ""),
+            row.get("League", ""),
+            row.get("Team", ""),
+            row.get("Player", ""),
+
             row.get("Category", ""),
             row.get("Title", ""),
             row.get("Short Caption", ""),
@@ -38,12 +46,13 @@ def push_if_new(row):
 
         print("ADDING:", row.get("Title")[:60], row.get("Type"))
 
-        sheet.append_row(values, table_range="A1:K1")
+        sheet.append_row(values)
 
         print("ADDED SUCCESSFULLY")
 
         return True
 
     except Exception as e:
+
         print("Sheet push error:", str(e))
         return False

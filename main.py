@@ -24,17 +24,66 @@ from team_intelligence_engine import refresh_teams
 from league_intelligence import build_power_post
 
 
+# --------------------------------------------------
+# SIMPLE ENTITY EXTRACTION FOR NEWS HEADLINES
+# --------------------------------------------------
+
+KNOWN_TEAMS = [
+    "Arsenal","Chelsea","Liverpool","Manchester City","Manchester United",
+    "Tottenham","Newcastle","Barcelona","Real Madrid","PSG","Bayern"
+]
+
+KNOWN_PLAYERS = [
+    "Messi","Ronaldo","Bellingham","Mbappe","Haaland",
+    "Saka","De Bruyne","Rashford","Kane"
+]
+
+
+def extract_entities(title):
+
+    league = ""
+    team_found = ""
+    player_found = ""
+
+    for t in KNOWN_TEAMS:
+        if t.lower() in title.lower():
+            team_found = t
+            league = "Premier League"
+            break
+
+    for p in KNOWN_PLAYERS:
+        if p.lower() in title.lower():
+            player_found = p
+            break
+
+    return league, team_found, player_found
+
+
+# --------------------------------------------------
+# IMAGE DOWNLOAD
+# --------------------------------------------------
+
 def download_image(url, path="temp.jpg"):
+
     try:
         res = requests.get(url, timeout=10)
+
         if res.status_code == 200:
+
             with open(path, "wb") as f:
                 f.write(res.content)
+
             return path
+
     except Exception as e:
         print("Download error:", e)
+
     return None
 
+
+# --------------------------------------------------
+# PROCESS SINGLE ITEM
+# --------------------------------------------------
 
 def process_item(item):
 
@@ -46,25 +95,75 @@ def process_item(item):
     print(f"\n--- ({score}) ---")
     print(title)
 
+    # --------------------------------
+    # ENRICH
+    # --------------------------------
+
     try:
+
         item = enrich_item(item)
         item = compute_confidence(item)
+
         update_memory(item)
+
         item["narrative"] = get_narrative(item)
+
     except Exception as e:
+
         print("Enrich error:", e)
 
     insight    = item.get("insight")
     confidence = item.get("confidence")
     narrative  = item.get("narrative", "")
 
-    teams = item.get("teams")
+    # --------------------------------
+    # ENTITY EXTRACTION
+    # --------------------------------
+
+    league = item.get("league", "")
+    teams  = item.get("teams", [])
+    player = item.get("player", "")
+
+    # fallback for news headlines
+    if not league and not teams:
+
+        league_guess, team_guess, player_guess = extract_entities(title)
+
+        if league_guess:
+            league = league_guess
+
+        if team_guess:
+            teams = [team_guess]
+
+        if player_guess and not player:
+            player = player_guess
+
+    if isinstance(teams, list):
+        team_string = ", ".join(teams)
+    else:
+        team_string = teams or ""
+
+    # --------------------------------
+    # EDGE MODEL
+    # --------------------------------
 
     if teams and len(teams) == 2:
+
         try:
-            item["edge"] = compute_edge(teams[0], teams[1], confidence)
+
+            item["edge"] = compute_edge(
+                teams[0],
+                teams[1],
+                confidence
+            )
+
         except Exception as e:
+
             print("Edge error:", e)
+
+    # --------------------------------
+    # EDITORIAL CONTEXT
+    # --------------------------------
 
     try:
         editorial = build_editorial_context(item)
@@ -73,6 +172,10 @@ def process_item(item):
 
     personality = choose_personality(item)
     fmt         = choose_format(item)
+
+    # --------------------------------
+    # CAPTION GENERATION
+    # --------------------------------
 
     overlay, short, long_cap, article = generate_content(
         title,
@@ -88,6 +191,10 @@ def process_item(item):
         item.get("edge")
     )
 
+    # --------------------------------
+    # IMAGE
+    # --------------------------------
+
     image_url = get_image(item)
 
     instagram_url = image_url
@@ -102,16 +209,29 @@ def process_item(item):
             try:
 
                 create_post(local, title, overlay, "post.jpg", brand=True)
+
                 instagram_url = upload_image("post.jpg")
 
             except Exception as e:
+
                 print("Image upload error:", e)
 
     context_string = f"{context} | {personality} | {fmt}"
+
     ts = int(time.time())
 
+    # --------------------------------
+    # INSTAGRAM ROW
+    # --------------------------------
+
     push_if_new({
+
         "Type": "instagram",
+
+        "League": league,
+        "Team": team_string,
+        "Player": player,
+
         "Category": "football",
         "Title": title,
         "Short Caption": short,
@@ -124,8 +244,18 @@ def process_item(item):
         "Date": ts
     })
 
+    # --------------------------------
+    # ARTICLE ROW
+    # --------------------------------
+
     push_if_new({
+
         "Type": "article",
+
+        "League": league,
+        "Team": team_string,
+        "Player": player,
+
         "Category": "football",
         "Title": title,
         "Short Caption": short,
@@ -141,6 +271,10 @@ def process_item(item):
     print("✓ Done")
 
 
+# --------------------------------------------------
+# RUN PIPELINE
+# --------------------------------------------------
+
 def run():
 
     print("=== START ===")
@@ -149,6 +283,10 @@ def run():
         refresh_teams()
     except Exception as e:
         print("Team intelligence refresh failed:", e)
+
+    # --------------------------------
+    # DAILY EDGE INDEX
+    # --------------------------------
 
     try:
 
@@ -167,7 +305,13 @@ def run():
             image_url = upload_image("evi_post.jpg")
 
             push_if_new({
+
                 "Type": "instagram",
+
+                "League": "",
+                "Team": "",
+                "Player": "",
+
                 "Category": "football",
                 "Title": "EDGE VOLATILITY INDEX — Gametrait™",
                 "Short Caption": overlay,
@@ -181,7 +325,12 @@ def run():
             })
 
     except Exception as e:
+
         print("Edge index error:", e)
+
+    # --------------------------------
+    # GLOBAL FORM INDEX
+    # --------------------------------
 
     try:
 
@@ -190,7 +339,13 @@ def run():
         if text:
 
             push_if_new({
+
                 "Type": "instagram",
+
+                "League": "",
+                "Team": "",
+                "Player": "",
+
                 "Category": "football",
                 "Title": "Global Football Form Index",
                 "Short Caption": overlay,
@@ -204,7 +359,12 @@ def run():
             })
 
     except Exception as e:
+
         print("Form index error:", e)
+
+    # --------------------------------
+    # NEWS + FIXTURES
+    # --------------------------------
 
     news     = fetch_news()
     fixtures = fetch_fixtures()
@@ -212,6 +372,7 @@ def run():
     enriched_fixtures = []
 
     for f in fixtures:
+
         try:
             enriched_fixtures.append(enrich_item(f))
         except:
@@ -220,14 +381,18 @@ def run():
     all_content = news + enriched_fixtures
 
     ranked = rank_news(all_content)
+
     ranked = rescore_ranked(ranked)
 
     print("Total ranked items:", len(ranked))
 
     for item in ranked:
+
         try:
             process_item(item)
+
         except Exception as e:
+
             print("PROCESS ERROR:", e)
 
     print("=== COMPLETE ===")
