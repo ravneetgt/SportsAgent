@@ -22,33 +22,37 @@ with col_title:
 
 st.markdown("---")
 
+
 # -----------------------------
 # LOAD DATA
 # -----------------------------
 @st.cache_data(ttl=30)
 def load_data():
+
     sheet = get_sheet()
-    data  = sheet.get_all_values()
+    data = sheet.get_all_values()
 
     if len(data) < 2:
         return []
 
-    headers = [h if h else f"col_{i}" for i, h in enumerate(data[0])]
+    headers = data[0]
 
-    records = []
-    for row in data[1:]:
-        item = {h: (row[i] if i < len(row) else "") for i, h in enumerate(headers)}
-        records.append(item)
+    rows = []
 
-    return records
+    for i, row in enumerate(data[1:]):
+        item = {h: (row[j] if j < len(row) else "") for j, h in enumerate(headers)}
+        item["_row"] = i + 2
+        rows.append(item)
+
+    return rows
 
 
 # -----------------------------
 # UPDATE ROW
 # -----------------------------
-def update_sheet_row(index, caption, status):
-    sheet      = get_sheet()
-    row_number = index + 2
+def update_sheet_row(row_number, caption, status):
+
+    sheet = get_sheet()
 
     sheet.update_cell(row_number, 4, caption)
     sheet.update_cell(row_number, 8, status)
@@ -57,24 +61,47 @@ def update_sheet_row(index, caption, status):
 
 
 # -----------------------------
+# APPROVE MATCHING ARTICLE
+# -----------------------------
+def approve_matching_article(title):
+
+    sheet = get_sheet()
+    rows = sheet.get_all_values()
+
+    headers = rows[0]
+
+    type_idx = headers.index("Type")
+    title_idx = headers.index("Title")
+    status_idx = headers.index("Status")
+
+    for i, row in enumerate(rows[1:], start=2):
+
+        if len(row) <= title_idx:
+            continue
+
+        if row[type_idx] == "article" and row[title_idx] == title:
+            sheet.update_cell(i, status_idx + 1, "POSTED")
+
+
+# -----------------------------
 # DATE HELPERS
 # -----------------------------
 def format_date(ts):
     try:
         return datetime.fromtimestamp(int(ts)).strftime("%d %b %Y • %I:%M %p")
-    except Exception:
+    except:
         return ""
 
 
 def parse_timestamp(ts):
     try:
         return datetime.fromtimestamp(int(ts))
-    except Exception:
+    except:
         return None
 
 
 # -----------------------------
-# MAIN
+# LOAD DATA
 # -----------------------------
 data = load_data()
 
@@ -82,12 +109,13 @@ if not data:
     st.warning("No data found")
     st.stop()
 
+
 # -----------------------------
 # SIDEBAR FILTERS
 # -----------------------------
 st.sidebar.header("Filters")
 
-status      = st.sidebar.selectbox("Status",       ["ALL", "PENDING", "POSTED", "REJECTED"])
+status = st.sidebar.selectbox("Status", ["ALL", "PENDING", "POSTED", "REJECTED"])
 type_filter = st.sidebar.selectbox("Content Type", ["ALL", "instagram", "article"])
 
 valid_dates = [parse_timestamp(d.get("Date")) for d in data if parse_timestamp(d.get("Date"))]
@@ -105,48 +133,60 @@ date_range = st.sidebar.date_input(
     max_value=max_date
 )
 
+
 # -----------------------------
 # APPLY FILTERS
 # -----------------------------
 filtered_data = []
 
 for row in data:
-    if status      != "ALL" and row.get("Status") != status:
+
+    if status != "ALL" and row.get("Status") != status:
         continue
-    if type_filter != "ALL" and row.get("Type")   != type_filter:
+
+    if type_filter != "ALL" and row.get("Type") != type_filter:
         continue
 
     row_dt = parse_timestamp(row.get("Date"))
+
     if row_dt and not (date_range[0] <= row_dt.date() <= date_range[1]):
         continue
 
     filtered_data.append(row)
+
 
 # -----------------------------
 # TABS
 # -----------------------------
 tab1, tab2 = st.tabs(["📱 Instagram Posts", "📰 Articles"])
 
+
 # -----------------------------
 # INSTAGRAM
 # -----------------------------
 with tab1:
+
     insta = [d for d in filtered_data if d.get("Type") == "instagram"]
 
-    for idx, row in enumerate(insta[::-1]):
-        real_index = len(insta) - idx - 1
+    for row in insta[::-1]:
 
         st.divider()
+
+        row_number = row["_row"]
 
         col1, col2 = st.columns([1, 1])
 
         with col1:
+
             image_url = row.get("Image URL", "")
+
             if image_url.startswith("http"):
                 st.image(image_url, use_container_width=True)
 
         with col2:
+
             st.subheader(row.get("Title", ""))
+
             st.write(f"**Status:** {row.get('Status')}")
             st.write(f"**Score:** {row.get('Score')}")
             st.write(f"**Date:** {format_date(row.get('Date'))}")
@@ -155,46 +195,78 @@ with tab1:
                 "Caption",
                 value=row.get("Short Caption", ""),
                 height=120,
-                key=f"caption_{real_index}"
+                key=f"caption_{row_number}"
             )
 
             colA, colB, colC = st.columns(3)
 
+            # -----------------------------
+            # PREVIEW
+            # -----------------------------
             with colA:
-                if st.button("Preview", key=f"preview_{real_index}"):
+
+                if st.button("Preview", key=f"preview_{row_number}"):
+
                     create_post(image_url, row.get("Title", ""), caption, "preview.jpg")
+
                     st.image("preview.jpg", use_container_width=True)
 
+            # -----------------------------
+            # APPROVE & POST
+            # -----------------------------
             with colB:
-                if st.button("Approve & Post", key=f"approve_{real_index}"):
+
+                if st.button("Approve & Post", key=f"approve_{row_number}"):
+
                     with st.spinner("Publishing to Instagram..."):
+
                         try:
+
                             post_id = publish_instagram(image_url, caption)
-                            update_sheet_row(real_index, caption, "POSTED")
+
+                            update_sheet_row(row_number, caption, "POSTED")
+
+                            approve_matching_article(row.get("Title"))
+
                             st.success("Instagram post published")
+
                             st.write("Post ID:", post_id)
+
                         except Exception as e:
+
                             st.error(f"Instagram publish failed: {e}")
 
+            # -----------------------------
+            # REJECT
+            # -----------------------------
             with colC:
-                if st.button("Reject", key=f"reject_{real_index}"):
-                    update_sheet_row(real_index, caption, "REJECTED")
+
+                if st.button("Reject", key=f"reject_{row_number}"):
+
+                    update_sheet_row(row_number, caption, "REJECTED")
+
 
 # -----------------------------
 # ARTICLES
 # -----------------------------
 with tab2:
+
     articles = [d for d in filtered_data if d.get("Type") == "article"]
 
     for row in articles[::-1]:
+
         st.divider()
+
         st.subheader(row.get("Title", ""))
 
         image_url = row.get("Image URL", "")
+
         if image_url.startswith("http"):
             st.image(image_url, use_container_width=True)
 
         st.write(f"**Status:** {row.get('Status')}")
         st.write(f"**Date:** {format_date(row.get('Date'))}")
+
         st.markdown("### Article")
+
         st.write(row.get("Article", ""))

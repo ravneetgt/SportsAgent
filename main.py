@@ -46,11 +46,6 @@ def process_item(item):
     print(f"\n--- ({score}) ---")
     print(title)
 
-    # --------------------------------------------------
-    # ENRICH + MEMORY
-    # enrich_item only does API work for preview fixtures,
-    # so news items pass through cheaply.
-    # --------------------------------------------------
     try:
         item = enrich_item(item)
         item = compute_confidence(item)
@@ -63,32 +58,22 @@ def process_item(item):
     confidence = item.get("confidence")
     narrative  = item.get("narrative", "")
 
-    # --------------------------------------------------
-    # EDGE MODEL
-    # --------------------------------------------------
     teams = item.get("teams")
+
     if teams and len(teams) == 2:
         try:
             item["edge"] = compute_edge(teams[0], teams[1], confidence)
         except Exception as e:
             print("Edge error:", e)
-            item["edge"] = None
 
-    # --------------------------------------------------
-    # EDITORIAL CONTEXT
-    # --------------------------------------------------
     try:
         editorial = build_editorial_context(item)
-    except Exception as e:
-        print("Editorial error:", e)
+    except:
         editorial = {}
 
     personality = choose_personality(item)
     fmt         = choose_format(item)
 
-    # --------------------------------------------------
-    # CAPTION GENERATION
-    # --------------------------------------------------
     overlay, short, long_cap, article = generate_content(
         title,
         summary,
@@ -103,53 +88,54 @@ def process_item(item):
         item.get("edge")
     )
 
-    # --------------------------------------------------
-    # IMAGE — fetch, render post card, upload
-    # --------------------------------------------------
     image_url = get_image(item)
-    final_url = image_url  # fallback: raw Pexels URL
+
+    instagram_url = image_url
+    article_url = image_url
 
     if image_url:
+
         local = download_image(image_url)
+
         if local:
+
             try:
-                create_post(local, title, overlay, "post.jpg")
-                final_url = upload_image("post.jpg")
+
+                create_post(local, title, overlay, "post.jpg", brand=True)
+                instagram_url = upload_image("post.jpg")
+
             except Exception as e:
                 print("Image upload error:", e)
 
-    # --------------------------------------------------
-    # PUSH TO SHEET
-    # --------------------------------------------------
     context_string = f"{context} | {personality} | {fmt}"
     ts = int(time.time())
 
     push_if_new({
-        "Type":          "instagram",
-        "Category":      "football",
-        "Title":         title,
+        "Type": "instagram",
+        "Category": "football",
+        "Title": title,
         "Short Caption": short,
-        "Long Caption":  long_cap,
-        "Article":       "",
-        "Image URL":     final_url,
-        "Status":        "PENDING",
-        "Context":       context_string,
-        "Score":         score,
-        "Date":          ts
+        "Long Caption": long_cap,
+        "Article": "",
+        "Image URL": instagram_url,
+        "Status": "PENDING",
+        "Context": context_string,
+        "Score": score,
+        "Date": ts
     })
 
     push_if_new({
-        "Type":          "article",
-        "Category":      "football",
-        "Title":         title,
+        "Type": "article",
+        "Category": "football",
+        "Title": title,
         "Short Caption": short,
-        "Long Caption":  long_cap,
-        "Article":       article,
-        "Image URL":     final_url,
-        "Status":        "PENDING",
-        "Context":       context_string,
-        "Score":         score,
-        "Date":          ts
+        "Long Caption": long_cap,
+        "Article": article,
+        "Image URL": article_url,
+        "Status": "PENDING",
+        "Context": context_string,
+        "Score": score,
+        "Date": ts
     })
 
     print("✓ Done")
@@ -159,95 +145,82 @@ def run():
 
     print("=== START ===")
 
-    # --------------------------------------------------
-    # TEAM INTELLIGENCE REFRESH
-    # Populates memory_store.json with fresh API match data.
-    # Runs first so downstream modules have current form.
-    # --------------------------------------------------
     try:
         refresh_teams()
     except Exception as e:
         print("Team intelligence refresh failed:", e)
 
-    # --------------------------------------------------
-    # DAILY EDGE INDEX
-    # Standalone feature post — not part of news pipeline.
-    # --------------------------------------------------
     try:
+
         overlay, visual, caption, article = generate_daily_edge_index()
 
         if visual:
-            create_post(None, "EDGE VOLATILITY INDEX", visual, "evi_post.jpg")
+
+            create_post(
+                None,
+                "EDGE VOLATILITY INDEX — Gametrait™",
+                visual,
+                "evi_post.jpg",
+                brand=True
+            )
+
             image_url = upload_image("evi_post.jpg")
 
             push_if_new({
-                "Type":          "instagram",
-                "Category":      "football",
-                "Title":         "GAMETRAIT — Daily Edge Intelligence",
+                "Type": "instagram",
+                "Category": "football",
+                "Title": "EDGE VOLATILITY INDEX — Gametrait™",
                 "Short Caption": overlay,
-                "Long Caption":  caption,
-                "Article":       article,
-                "Image URL":     image_url,
-                "Status":        "PENDING",
-                "Context":       "daily_feature | analyst | breakdown",
-                "Score":         99,
-                "Date":          int(time.time())
+                "Long Caption": caption,
+                "Article": article,
+                "Image URL": image_url,
+                "Status": "PENDING",
+                "Context": "daily_feature | analyst | breakdown",
+                "Score": 99,
+                "Date": int(time.time())
             })
 
     except Exception as e:
         print("Edge index error:", e)
 
-    # --------------------------------------------------
-    # GLOBAL FORM INDEX
-    # --------------------------------------------------
     try:
+
         overlay, text = build_power_post()
 
         if text:
+
             push_if_new({
-                "Type":          "instagram",
-                "Category":      "football",
-                "Title":         "Global Football Form Index",
+                "Type": "instagram",
+                "Category": "football",
+                "Title": "Global Football Form Index",
                 "Short Caption": overlay,
-                "Long Caption":  text,
-                "Article":       "",
-                "Image URL":     "",
-                "Status":        "PENDING",
-                "Context":       "data_intelligence | analyst | breakdown",
-                "Score":         90,
-                "Date":          int(time.time())
+                "Long Caption": text,
+                "Article": "",
+                "Image URL": "",
+                "Status": "PENDING",
+                "Context": "data_intelligence | analyst | breakdown",
+                "Score": 90,
+                "Date": int(time.time())
             })
 
     except Exception as e:
         print("Form index error:", e)
 
-    # --------------------------------------------------
-    # NEWS PIPELINE
-    #
-    # Order matters:
-    #   1. Fetch news + fixtures
-    #   2. Enrich fixtures BEFORE ranking so insight scores fire
-    #   3. Base rank (recency, clubs, intent)
-    #   4. Re-score with insight boosts now that data exists
-    #   5. Process each item (enrich_item is idempotent — fixtures
-    #      already enriched here just return early)
-    # --------------------------------------------------
     news     = fetch_news()
     fixtures = fetch_fixtures()
 
-    # Pre-enrich fixtures so rank_news can see insight data
     enriched_fixtures = []
+
     for f in fixtures:
         try:
             enriched_fixtures.append(enrich_item(f))
-        except Exception as e:
-            print("Pre-enrich error:", e)
+        except:
             enriched_fixtures.append(f)
 
     all_content = news + enriched_fixtures
 
-    ranked = rank_news(all_content)        # base score
-    ranked = rescore_ranked(ranked)        # add insight boost
+    ranked = rank_news(all_content)
+    ranked = rescore_ranked(ranked)
 
     print("Total ranked items:", len(ranked))
 

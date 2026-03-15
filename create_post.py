@@ -13,16 +13,19 @@ FONT_PATH = "Arial.ttf"
 
 def load_image(source):
     try:
-        if source.startswith("http"):
+        if source and source.startswith("http"):
             res = requests.get(source, timeout=10)
             return Image.open(BytesIO(res.content)).convert("RGB")
-        else:
+        elif source:
             return Image.open(source).convert("RGB")
     except:
-        return Image.new("RGB", (WIDTH, HEIGHT), (20, 20, 20))
+        pass
+
+    return Image.new("RGB", (WIDTH, HEIGHT), (20, 20, 20))
 
 
 def resize_cover(img):
+
     img_ratio = img.width / img.height
     target_ratio = WIDTH / HEIGHT
 
@@ -42,6 +45,7 @@ def resize_cover(img):
 
 
 def add_gradient(img):
+
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
@@ -56,6 +60,7 @@ def add_gradient(img):
 
 
 def draw_text(draw, text, font, x, y, width, color):
+
     lines = textwrap.wrap(text, width=width)
 
     for line in lines:
@@ -72,22 +77,25 @@ def draw_text(draw, text, font, x, y, width, color):
     return y
 
 
-# -----------------------------
-# MEASURE TEXT HEIGHT
-# -----------------------------
 def get_text_height(text, font, width):
+
     lines = textwrap.wrap(text, width=width)
+
     height = 0
+
     for line in lines:
         height += font.getbbox(line)[3] + 8
+
     return height
 
 
-def create_post(image_source, title, overlay_text, output_path="preview.png"):
+def create_post(image_source, title, overlay_text, output_path="preview.png", brand=True):
 
     img = load_image(image_source)
     img = resize_cover(img)
-    img = add_gradient(img)
+
+    if brand:
+        img = add_gradient(img)
 
     draw = ImageDraw.Draw(img)
 
@@ -100,43 +108,48 @@ def create_post(image_source, title, overlay_text, output_path="preview.png"):
         caption_font = ImageFont.load_default()
         brand_font = ImageFont.load_default()
 
-    # -----------------------------
-    # LOGO
-    # -----------------------------
-    try:
-        if os.path.exists(LOGO_PATH):
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            logo.thumbnail((80, 80))
-            img.paste(logo, (40, 40), logo)
+    # --------------------------------
+    # LOGO + BRAND
+    # --------------------------------
+    if brand:
+        try:
+            if os.path.exists(LOGO_PATH):
 
-            draw.text(
-                (140, 55),
-                "GAMETRAIT",
-                font=brand_font,
-                fill=(255,255,255),
-                stroke_width=1,
-                stroke_fill=(0,0,0)
-            )
-    except:
-        pass
+                logo = Image.open(LOGO_PATH).convert("RGBA")
+                logo.thumbnail((80, 80))
 
-    # -----------------------------
-    # DYNAMIC TEXT POSITIONING
-    # -----------------------------
-    overlay_text = overlay_text[:180]
+                img.paste(logo, (40, 40), logo)
 
-    title_h = get_text_height(title, title_font, 28)
-    caption_h = get_text_height(overlay_text, caption_font, 34)
+                draw.text(
+                    (140, 55),
+                    "Gametrait™",
+                    font=brand_font,
+                    fill=(255,255,255),
+                    stroke_width=1,
+                    stroke_fill=(0,0,0)
+                )
+        except:
+            pass
 
-    total_h = title_h + caption_h + 40
+    # --------------------------------
+    # TEXT OVERLAY
+    # --------------------------------
+    if brand:
 
-    y_start = HEIGHT - total_h - 60
+        overlay_text = overlay_text[:180]
 
-    y = y_start
+        title_h = get_text_height(title, title_font, 28)
+        caption_h = get_text_height(overlay_text, caption_font, 34)
 
-    y = draw_text(draw, title, title_font, 60, y, 28, (255,255,255))
+        total_h = title_h + caption_h + 40
 
-    draw_text(draw, overlay_text, caption_font, 60, y + 20, 34, (220,220,220))
+        y_start = HEIGHT - total_h - 60
+
+        y = y_start
+
+        y = draw_text(draw, title, title_font, 60, y, 28, (255,255,255))
+
+        draw_text(draw, overlay_text, caption_font, 60, y + 20, 34, (220,220,220))
 
     img = img.convert("RGB")
     img.save(output_path)
