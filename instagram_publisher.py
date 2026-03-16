@@ -7,32 +7,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-# -----------------------------
+# ---------------------------------------------------
 # SECRET LOADER
-# -----------------------------
+# ---------------------------------------------------
 def get_secret(name):
 
-    # try environment variables first
+    # 1️⃣ environment variables
     val = os.getenv(name)
     if val:
         return val
 
-    # try streamlit secrets
+    # 2️⃣ streamlit secrets (flat)
     try:
-        if name in st.secrets:
-            return st.secrets[name]
+        return st.secrets[name]
+    except:
+        pass
 
-        if "instagram" in st.secrets and name in st.secrets["instagram"]:
-            return st.secrets["instagram"][name]
+    # 3️⃣ streamlit secrets nested section
+    try:
+        return st.secrets["instagram"][name]
     except:
         pass
 
     return None
 
 
-# -----------------------------
+# ---------------------------------------------------
 # CREATE MEDIA CONTAINER
-# -----------------------------
+# ---------------------------------------------------
 def create_container(ig_id, token, image_url, caption):
 
     url = f"https://graph.facebook.com/v25.0/{ig_id}/media"
@@ -52,9 +54,9 @@ def create_container(ig_id, token, image_url, caption):
     return data["id"]
 
 
-# -----------------------------
+# ---------------------------------------------------
 # CHECK CONTAINER STATUS
-# -----------------------------
+# ---------------------------------------------------
 def check_container_status(token, creation_id):
 
     url = f"https://graph.facebook.com/v25.0/{creation_id}"
@@ -70,12 +72,12 @@ def check_container_status(token, creation_id):
     return data.get("status_code")
 
 
-# -----------------------------
+# ---------------------------------------------------
 # WAIT UNTIL MEDIA READY
-# -----------------------------
+# ---------------------------------------------------
 def wait_until_ready(token, creation_id):
 
-    for _ in range(10):  # wait up to ~20 seconds
+    for _ in range(10):
 
         status = check_container_status(token, creation_id)
 
@@ -90,9 +92,9 @@ def wait_until_ready(token, creation_id):
     raise Exception("Instagram media not ready after waiting")
 
 
-# -----------------------------
+# ---------------------------------------------------
 # PUBLISH CONTAINER
-# -----------------------------
+# ---------------------------------------------------
 def publish_container(ig_id, token, creation_id):
 
     url = f"https://graph.facebook.com/v25.0/{ig_id}/media_publish"
@@ -111,9 +113,9 @@ def publish_container(ig_id, token, creation_id):
     return data["id"]
 
 
-# -----------------------------
+# ---------------------------------------------------
 # MAIN PUBLISH FUNCTION
-# -----------------------------
+# ---------------------------------------------------
 def publish_instagram(image_url, caption):
 
     IG_ID = get_secret("IG_BUSINESS_ID")
@@ -125,7 +127,6 @@ def publish_instagram(image_url, caption):
     if not ACCESS_TOKEN:
         raise Exception("IG_ACCESS_TOKEN missing")
 
-    # create container
     creation_id = create_container(
         IG_ID,
         ACCESS_TOKEN,
@@ -133,13 +134,11 @@ def publish_instagram(image_url, caption):
         caption
     )
 
-    # wait for instagram processing
     wait_until_ready(
         ACCESS_TOKEN,
         creation_id
     )
 
-    # publish
     post_id = publish_container(
         IG_ID,
         ACCESS_TOKEN,
