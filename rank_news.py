@@ -1,11 +1,17 @@
 import time
 
-# -----------------------------
+
+# --------------------------------------------------
 # CONFIG
-# -----------------------------
+# --------------------------------------------------
+
 BIG_CLUBS = [
-    "real madrid", "barcelona", "manchester", "liverpool",
-    "arsenal", "chelsea", "psg", "bayern", "inter", "milan"
+    "real madrid", "barcelona", "atletico",
+    "manchester city", "manchester united",
+    "liverpool", "arsenal", "chelsea", "tottenham",
+    "bayern", "dortmund",
+    "psg",
+    "inter", "milan", "juventus"
 ]
 
 LOW_VALUE = [
@@ -21,17 +27,28 @@ HIGH_INTENT = [
 ]
 
 
-# -----------------------------
+# --------------------------------------------------
 # HELPERS
-# -----------------------------
+# --------------------------------------------------
+
 def contains_any(text, keywords):
     return any(k in text for k in keywords)
 
 
-# -----------------------------
+def club_boost(text):
+    """
+    Ensures top clubs never disappear from ranking.
+    """
+    for club in BIG_CLUBS:
+        if club in text:
+            return 12
+    return 0
+
+
+# --------------------------------------------------
 # BASE SCORE
-# Used before enrichment — no insight available yet.
-# -----------------------------
+# --------------------------------------------------
+
 def score_article(a):
 
     title   = a.get("title", "").lower()
@@ -43,30 +60,55 @@ def score_article(a):
 
     score = 0
 
-    # Low value filter
+    # --------------------------------------------------
+    # LOW VALUE
+    # --------------------------------------------------
+
     if contains_any(title, LOW_VALUE):
         return 0
 
-    # Match / fixture
-    if " vs " in text:
-        score += 6
 
-    # Result / event keywords
-    if contains_any(text, HIGH_INTENT):
+    # --------------------------------------------------
+    # MATCH / FIXTURE
+    # --------------------------------------------------
+
+    if " vs " in text:
         score += 8
 
-    # Big clubs
-    if any(c in text for c in BIG_CLUBS):
-        score += 6
 
-    # Context
+    # --------------------------------------------------
+    # RESULT / EVENTS
+    # --------------------------------------------------
+
+    if contains_any(text, HIGH_INTENT):
+        score += 10
+
+
+    # --------------------------------------------------
+    # CLUB PRIORITY
+    # --------------------------------------------------
+
+    score += club_boost(text)
+
+
+    # --------------------------------------------------
+    # CONTEXT
+    # --------------------------------------------------
+
     if context == "preview":
         score += 6
+
+    elif context == "result":
+        score += 8
+
     elif context == "news":
         score += 4
 
-    # Recency — now works for news items because fetch_news.py
-    # populates the "date" field from feedparser's published_parsed
+
+    # --------------------------------------------------
+    # RECENCY
+    # --------------------------------------------------
+
     if ts:
         try:
             age_hours = (time.time() - int(ts)) / 3600
@@ -76,36 +118,46 @@ def score_article(a):
             elif age_hours < 12:
                 score += 8
             elif age_hours < 24:
-                score += 5
+                score += 6
             else:
-                score += 2
+                score += 3
+
         except Exception:
             score += 3
+
     else:
         score += 3
 
-    # Penalise very short titles (usually generic)
+
+    # --------------------------------------------------
+    # SHORT TITLE PENALTY
+    # --------------------------------------------------
+
     if len(title) < 40:
         score -= 2
+
 
     return max(score, 0)
 
 
-# -----------------------------
+# --------------------------------------------------
 # INSIGHT BOOST
-# Applied separately after enrich_item() has run in main.py.
-# Keeps ranking logic honest — scores only reflect real data.
-# -----------------------------
+# --------------------------------------------------
+
 def insight_boost(a):
+
     insight = a.get("insight")
+
     if not insight:
         return 0
 
     boost = 0
+
     prediction = insight.get("prediction")
 
     if prediction in ["home_strong", "away_strong"]:
         boost += 6
+
     elif prediction == "balanced":
         boost += 3
 
@@ -115,36 +167,36 @@ def insight_boost(a):
     return boost
 
 
-# -----------------------------
-# INITIAL RANKING (pre-enrichment)
-# Called in main.py before process_item loop.
-# -----------------------------
-def rank_news(articles, top_n=15):
+# --------------------------------------------------
+# INITIAL RANKING
+# --------------------------------------------------
+
+def rank_news(articles, top_n=30):
+
     scored = []
 
     for a in articles:
+
         s = score_article(a)
+
         a["score"] = s
 
         if s > 0:
             scored.append(a)
 
     ranked = sorted(scored, key=lambda x: x["score"], reverse=True)
+
     return ranked[:top_n]
 
 
-# -----------------------------
-# RE-SCORE (post-enrichment)
-# Call this in main.py after enrich_item() on fixtures,
-# before processing, to apply insight boosts.
-#
-# Usage in main.py:
-#   ranked = rank_news(all_content)
-#   ranked = rescore_ranked(ranked)
-#   for item in ranked: process_item(item)
-# -----------------------------
+# --------------------------------------------------
+# RE-SCORE AFTER ENRICHMENT
+# --------------------------------------------------
+
 def rescore_ranked(articles):
+
     for a in articles:
+
         a["score"] = a.get("score", 0) + insight_boost(a)
 
     return sorted(articles, key=lambda x: x["score"], reverse=True)

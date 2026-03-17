@@ -90,7 +90,7 @@ def approve_matching_article(title):
 
         if row[type_idx] == "article" and row[title_idx] == title:
 
-            sheet.update_cell(i, status_idx+1, "POSTED")
+            sheet.update_cell(i, status_idx+1, "Approved")
 
 
 # ---------------------------------------------------
