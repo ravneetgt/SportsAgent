@@ -25,3 +25,5 @@ SportsAgent
 SportsAgent.pub
 .env
 credentials.json
+credentials.json
+.env
