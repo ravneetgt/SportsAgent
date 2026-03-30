@@ -5,14 +5,40 @@ import calendar
 
 
 FEEDS = [
+    # ── UK / Premier League ──────────────────────────────
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.theguardian.com/football/rss",
     "https://www.skysports.com/rss/12040",
+    "https://www.goal.com/en/rss",
+    "https://www.90min.com/feeds/latest.rss",
+
+    # ── Champions League / UEFA ──────────────────────────
+    "https://www.uefa.com/uefachampionsleague/rss/news/",
+    "https://www.uefa.com/uefaeuropaleague/rss/news/",
+
+    # ── La Liga / Spain ──────────────────────────────────
+    "https://www.marca.com/en/football/rss2.xml",
+    "https://managingmadrid.com/rss/current.xml",
+    "https://www.barcablaugranes.com/rss/current.xml",
+
+    # ── Bundesliga / Germany ─────────────────────────────
+    "https://bavarian-football-works.com/rss/current.xml",
+    "https://bulinews.com/feed/",
+
+    # ── Serie A / Italy ──────────────────────────────────
+    "https://www.football-italia.net/feed",
+    "https://sempreinter.com/feed",
+
+    # ── Ligue 1 / France ─────────────────────────────────
+    "https://parisbeaumonde.com/feed",
+    "https://thebusbybabe.sbnation.com/rss/current.xml",
+
+    # ── FIFA / International ─────────────────────────────
+    "https://www.fourfourtwo.com/news/rss",
     "https://www.espn.com/espn/rss/soccer/news",
 
-    # Global football
-    "https://www.goal.com/en/rss",
-    "https://www.football-italia.net/rss",
+    # ── Transfers ────────────────────────────────────────
+    "https://www.givemesport.com/rss/football",
 ]
 
 
