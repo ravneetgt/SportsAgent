@@ -1,4 +1,25 @@
+# Secrets
+.streamlit/secrets.toml
 .env
-credentials.json
+
+# Python
 __pycache__/
-posts/
+*.pyc
+*.pyo
+.Python
+
+# Output files (too large for repo)
+output/
+node_modules/
+
+# Data files (managed externally)
+evi_history.json
+memory_store.json
+evi_post.jpg
+
+# Mac
+.DS_Store
+
+# Keys
+SportsAgent
+SportsAgent.pub
