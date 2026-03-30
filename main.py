@@ -25,12 +25,25 @@ from league_intelligence import build_power_post
 
 
 # --------------------------------------------------
-# SIMPLE ENTITY EXTRACTION FOR NEWS HEADLINES
+# ENTITY DATABASE (FIXED — GLOBAL COVERAGE)
 # --------------------------------------------------
 
 KNOWN_TEAMS = [
+    # England
     "Arsenal","Chelsea","Liverpool","Manchester City","Manchester United",
-    "Tottenham","Newcastle","Barcelona","Real Madrid","PSG","Bayern"
+    "Tottenham","Newcastle",
+
+    # Spain
+    "Real Madrid","Barcelona","Atletico Madrid",
+
+    # Germany
+    "Bayern Munich","Borussia Dortmund","RB Leipzig",
+
+    # Italy
+    "Inter","AC Milan","Juventus","Napoli","Roma",
+
+    # France
+    "PSG","Marseille","Lyon"
 ]
 
 KNOWN_PLAYERS = [
@@ -39,20 +52,59 @@ KNOWN_PLAYERS = [
 ]
 
 
+# --------------------------------------------------
+# ENTITY EXTRACTION (FIXED — NO EPL BIAS)
+# --------------------------------------------------
+
 def extract_entities(title):
+
+    title_lower = title.lower()
+
+    TEAM_LEAGUE_MAP = {
+        # England
+        "arsenal": "Premier League",
+        "chelsea": "Premier League",
+        "liverpool": "Premier League",
+        "manchester city": "Premier League",
+        "manchester united": "Premier League",
+        "tottenham": "Premier League",
+        "newcastle": "Premier League",
+
+        # Spain
+        "real madrid": "La Liga",
+        "barcelona": "La Liga",
+        "atletico": "La Liga",
+
+        # Germany
+        "bayern": "Bundesliga",
+        "dortmund": "Bundesliga",
+        "leipzig": "Bundesliga",
+
+        # Italy
+        "inter": "Serie A",
+        "milan": "Serie A",
+        "juventus": "Serie A",
+        "napoli": "Serie A",
+        "roma": "Serie A",
+
+        # France
+        "psg": "Ligue 1",
+        "marseille": "Ligue 1",
+        "lyon": "Ligue 1"
+    }
 
     league = ""
     team_found = ""
     player_found = ""
 
-    for t in KNOWN_TEAMS:
-        if t.lower() in title.lower():
-            team_found = t
-            league = "Premier League"
+    for team, lg in TEAM_LEAGUE_MAP.items():
+        if team in title_lower:
+            team_found = team.title()
+            league = lg
             break
 
     for p in KNOWN_PLAYERS:
-        if p.lower() in title.lower():
+        if p.lower() in title_lower:
             player_found = p
             break
 
@@ -82,7 +134,7 @@ def download_image(url, path="temp.jpg"):
 
 
 # --------------------------------------------------
-# PROCESS SINGLE ITEM
+# PROCESS ITEM
 # --------------------------------------------------
 
 def process_item(item):
@@ -100,16 +152,13 @@ def process_item(item):
     # --------------------------------
 
     try:
-
         item = enrich_item(item)
         item = compute_confidence(item)
 
         update_memory(item)
-
         item["narrative"] = get_narrative(item)
 
     except Exception as e:
-
         print("Enrich error:", e)
 
     insight    = item.get("insight")
@@ -124,7 +173,6 @@ def process_item(item):
     teams  = item.get("teams", [])
     player = item.get("player", "")
 
-    # fallback for news headlines
     if not league and not teams:
 
         league_guess, team_guess, player_guess = extract_entities(title)
@@ -150,7 +198,6 @@ def process_item(item):
     if teams and len(teams) == 2:
 
         try:
-
             item["edge"] = compute_edge(
                 teams[0],
                 teams[1],
@@ -158,11 +205,10 @@ def process_item(item):
             )
 
         except Exception as e:
-
             print("Edge error:", e)
 
     # --------------------------------
-    # EDITORIAL CONTEXT
+    # EDITORIAL
     # --------------------------------
 
     try:
@@ -174,7 +220,7 @@ def process_item(item):
     fmt         = choose_format(item)
 
     # --------------------------------
-    # CAPTION GENERATION
+    # CONTENT
     # --------------------------------
 
     overlay, short, long_cap, article = generate_content(
@@ -198,26 +244,20 @@ def process_item(item):
     image_url = get_image(item)
 
     instagram_url = image_url
-    article_url = image_url
+    article_url   = image_url
 
     if image_url:
 
         local = download_image(image_url)
 
         if local:
-
             try:
-
                 create_post(local, title, overlay, "post.jpg", brand=True)
-
                 instagram_url = upload_image("post.jpg")
-
             except Exception as e:
-
-                print("Image upload error:", e)
+                print("Image error:", e)
 
     context_string = f"{context} | {personality} | {fmt}"
-
     ts = int(time.time())
 
     # --------------------------------
@@ -225,13 +265,10 @@ def process_item(item):
     # --------------------------------
 
     push_if_new({
-
         "Type": "instagram",
-
         "League": league,
         "Team": team_string,
         "Player": player,
-
         "Category": "football",
         "Title": title,
         "Short Caption": short,
@@ -249,13 +286,10 @@ def process_item(item):
     # --------------------------------
 
     push_if_new({
-
         "Type": "article",
-
         "League": league,
         "Team": team_string,
         "Player": player,
-
         "Category": "football",
         "Title": title,
         "Short Caption": short,
@@ -282,12 +316,9 @@ def run():
     try:
         refresh_teams()
     except Exception as e:
-        print("Team intelligence refresh failed:", e)
+        print("Team refresh failed:", e)
 
-    # --------------------------------
-    # DAILY EDGE INDEX
-    # --------------------------------
-
+    # EDGE INDEX
     try:
 
         overlay, visual, caption, article = generate_daily_edge_index()
@@ -305,13 +336,10 @@ def run():
             image_url = upload_image("evi_post.jpg")
 
             push_if_new({
-
                 "Type": "instagram",
-
                 "League": "",
                 "Team": "",
                 "Player": "",
-
                 "Category": "football",
                 "Title": "EDGE VOLATILITY INDEX — Gametrait™",
                 "Short Caption": overlay,
@@ -325,13 +353,9 @@ def run():
             })
 
     except Exception as e:
-
         print("Edge index error:", e)
 
-    # --------------------------------
-    # GLOBAL FORM INDEX
-    # --------------------------------
-
+    # FORM INDEX
     try:
 
         overlay, text = build_power_post()
@@ -339,13 +363,10 @@ def run():
         if text:
 
             push_if_new({
-
                 "Type": "instagram",
-
                 "League": "",
                 "Team": "",
                 "Player": "",
-
                 "Category": "football",
                 "Title": "Global Football Form Index",
                 "Short Caption": overlay,
@@ -359,20 +380,15 @@ def run():
             })
 
     except Exception as e:
-
         print("Form index error:", e)
 
-    # --------------------------------
     # NEWS + FIXTURES
-    # --------------------------------
-
     news     = fetch_news()
     fixtures = fetch_fixtures()
 
     enriched_fixtures = []
 
     for f in fixtures:
-
         try:
             enriched_fixtures.append(enrich_item(f))
         except:
@@ -381,18 +397,14 @@ def run():
     all_content = news + enriched_fixtures
 
     ranked = rank_news(all_content)
-
     ranked = rescore_ranked(ranked)
 
     print("Total ranked items:", len(ranked))
 
     for item in ranked:
-
         try:
             process_item(item)
-
         except Exception as e:
-
             print("PROCESS ERROR:", e)
 
     print("=== COMPLETE ===")

@@ -9,7 +9,10 @@
     "recent_form": [
       "D"
     ],
-    "last_updated": "2026-03-04 08:25:45.796369"
+    "last_updated": "2026-03-04 08:25:45.796369",
+    "mention_count": 32,
+    "last_seen": "2026-03-29 14:05:40.792370",
+    "last_insight_hash": null
   },
   "Inter": {
     "matches": 3,
@@ -23,7 +26,10 @@
       "D",
       "D"
     ],
-    "last_updated": "2026-03-05 21:30:20.269215"
+    "last_updated": "2026-03-05 21:30:20.269215",
+    "mention_count": 44,
+    "last_seen": "2026-03-29 14:11:56.045483",
+    "last_insight_hash": null
   },
   "Real Madrid": {
     "matches": 2,
@@ -36,7 +42,10 @@
       "D",
       "D"
     ],
-    "last_updated": "2026-03-05 21:30:20.269161"
+    "last_updated": "2026-03-05 21:30:20.269161",
+    "mention_count": 70,
+    "last_seen": "2026-03-29 14:11:38.852312",
+    "last_insight_hash": null
   },
   "Chelsea": {
     "matches": 12,
@@ -58,8 +67,8 @@
       "D"
     ],
     "last_updated": "2026-03-13 19:54:53.039428",
-    "mention_count": 1,
-    "last_seen": "2026-03-14 12:11:56.189767",
+    "mention_count": 111,
+    "last_seen": "2026-03-29 14:06:59.487134",
     "last_insight_hash": null
   },
   "PSG": {
@@ -97,7 +106,10 @@
       "D",
       "D"
     ],
-    "last_updated": "2026-03-08 15:20:11.996302"
+    "last_updated": "2026-03-08 15:20:11.996302",
+    "mention_count": 204,
+    "last_seen": "2026-03-29 14:10:48.092193",
+    "last_insight_hash": null
   },
   "Manchester City": {
     "matches": 2,
@@ -110,7 +122,10 @@
       "D",
       "D"
     ],
-    "last_updated": "2026-03-08 15:20:11.996366"
+    "last_updated": "2026-03-08 15:20:11.996366",
+    "mention_count": 28,
+    "last_seen": "2026-03-29 14:08:31.465761",
+    "last_insight_hash": null
   },
   "Liverpool": {
     "matches": 2,
@@ -123,7 +138,10 @@
       "D",
       "D"
     ],
-    "last_updated": "2026-03-09 23:08:37.097978"
+    "last_updated": "2026-03-09 23:08:37.097978",
+    "mention_count": 110,
+    "last_seen": "2026-03-30 09:29:17.749498",
+    "last_insight_hash": null
   },
   "arsenal": {
     "recent_form": [],
@@ -227,6 +245,290 @@
     "goals_against": 0,
     "mention_count": 2,
     "last_seen": "2026-03-17 07:58:10.191435",
+    "last_insight_hash": null
+  },
+  "Madrid": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 24,
+    "last_seen": "2026-03-25 09:54:44.840413",
+    "last_insight_hash": null
+  },
+  "Tottenham": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 60,
+    "last_seen": "2026-03-29 14:12:14.747634",
+    "last_insight_hash": null
+  },
+  "Manchester United": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 86,
+    "last_seen": "2026-03-30 09:29:11.246490",
+    "last_insight_hash": null
+  },
+  "Milan": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 4,
+    "last_seen": "2026-03-20 15:37:10.797053",
+    "last_insight_hash": null
+  },
+  "Bayern": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 22,
+    "last_seen": "2026-03-29 14:11:22.964678",
+    "last_insight_hash": null
+  },
+  "Atletico": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 2,
+    "last_seen": "2026-03-18 22:00:47.941208",
+    "last_insight_hash": null
+  },
+  "Psg": {
+    "recent_form": [],
+    "goals_for": 0,
+    "goals_against": 0,
+    "mention_count": 2,
+    "last_seen": "2026-03-23 20:42:53.395753",
+    "last_insight_hash": null
+  },
+  "1. FC K\u00f6ln": {
+    "recent_form": [
+      "W",
+      "L",
+      "W",
+      "L",
+      "L",
+      "D",
+      "L",
+      "L",
+      "D",
+      "D"
+    ],
+    "goals_for": 13,
+    "goals_against": 18,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:29.050825",
+    "last_insight_hash": null
+  },
+  "TSG 1899 Hoffenheim": {
+    "recent_form": [
+      "W",
+      "W",
+      "W",
+      "L",
+      "W",
+      "D",
+      "L",
+      "W",
+      "D",
+      "L"
+    ],
+    "goals_for": 19,
+    "goals_against": 18,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:30.087660",
+    "last_insight_hash": null
+  },
+  "Bayer 04 Leverkusen": {
+    "recent_form": [
+      "W",
+      "L",
+      "D",
+      "D",
+      "W",
+      "D",
+      "D",
+      "D",
+      "L",
+      "D"
+    ],
+    "goals_for": 12,
+    "goals_against": 12,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:31.214857",
+    "last_insight_hash": null
+  },
+  "Borussia Dortmund": {
+    "recent_form": [
+      "W",
+      "W",
+      "W",
+      "W",
+      "D",
+      "L",
+      "L",
+      "W",
+      "W",
+      "W"
+    ],
+    "goals_for": 23,
+    "goals_against": 15,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:32.191612",
+    "last_insight_hash": null
+  },
+  "FC Bayern M\u00fcnchen": {
+    "recent_form": [
+      "D",
+      "W",
+      "W",
+      "W",
+      "W",
+      "W",
+      "W",
+      "D",
+      "W",
+      "W"
+    ],
+    "goals_for": 35,
+    "goals_against": 11,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:33.368356",
+    "last_insight_hash": null
+  },
+  "Hamburger SV": {
+    "recent_form": [
+      "D",
+      "D",
+      "W",
+      "W",
+      "D",
+      "L",
+      "L",
+      "W",
+      "D",
+      "L"
+    ],
+    "goals_for": 14,
+    "goals_against": 13,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:35.694005",
+    "last_insight_hash": null
+  },
+  "VfB Stuttgart": {
+    "recent_form": [
+      "D",
+      "W",
+      "W",
+      "L",
+      "W",
+      "D",
+      "W",
+      "D",
+      "W",
+      "W"
+    ],
+    "goals_for": 24,
+    "goals_against": 11,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:39.184321",
+    "last_insight_hash": null
+  },
+  "VfL Wolfsburg": {
+    "recent_form": [
+      "D",
+      "L",
+      "L",
+      "L",
+      "D",
+      "L",
+      "L",
+      "L",
+      "D",
+      "L"
+    ],
+    "goals_for": 9,
+    "goals_against": 20,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:40.301988",
+    "last_insight_hash": null
+  },
+  "SV Werder Bremen": {
+    "recent_form": [
+      "L",
+      "L",
+      "D",
+      "L",
+      "L",
+      "L",
+      "W",
+      "W",
+      "L",
+      "W"
+    ],
+    "goals_for": 9,
+    "goals_against": 13,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:41.313819",
+    "last_insight_hash": null
+  },
+  "1. FSV Mainz 05": {
+    "recent_form": [
+      "L",
+      "W",
+      "W",
+      "W",
+      "L",
+      "D",
+      "D",
+      "D",
+      "W",
+      "W"
+    ],
+    "goals_for": 16,
+    "goals_against": 13,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:27:45.263130",
+    "last_insight_hash": null
+  },
+  "FC St. Pauli 1910": {
+    "recent_form": [
+      "D",
+      "D",
+      "L",
+      "W",
+      "L",
+      "W",
+      "W",
+      "D",
+      "L",
+      "L"
+    ],
+    "goals_for": 8,
+    "goals_against": 13,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:28:28.274336",
+    "last_insight_hash": null
+  },
+  "1. FC Union Berlin": {
+    "recent_form": [
+      "D",
+      "L",
+      "L",
+      "D",
+      "L",
+      "W",
+      "L",
+      "L",
+      "W",
+      "L"
+    ],
+    "goals_for": 8,
+    "goals_against": 20,
+    "mention_count": 0,
+    "last_seen": "2026-03-30 09:28:34.533349",
     "last_insight_hash": null
   }
 }

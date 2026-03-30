@@ -4,10 +4,6 @@ import time
 import calendar
 
 
-# --------------------------------------------------
-# RSS SOURCES
-# --------------------------------------------------
-
 FEEDS = [
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.theguardian.com/football/rss",
@@ -20,37 +16,49 @@ FEEDS = [
 ]
 
 
-# --------------------------------------------------
-# TOP CLUB DATABASE
-# Used to guarantee coverage even if RSS ignores them
-# --------------------------------------------------
-
 TOP_CLUBS = {
+
+    # Spain
     "real madrid": "La Liga",
+    "madrid": "La Liga",
     "barcelona": "La Liga",
+    "barca": "La Liga",
     "atletico": "La Liga",
 
-    "bayern": "Bundesliga",
-    "dortmund": "Bundesliga",
-
-    "psg": "Ligue 1",
-
-    "inter": "Serie A",
-    "milan": "Serie A",
-    "juventus": "Serie A",
-
+    # England
     "arsenal": "Premier League",
     "chelsea": "Premier League",
     "liverpool": "Premier League",
     "manchester city": "Premier League",
+    "man city": "Premier League",
     "manchester united": "Premier League",
-    "tottenham": "Premier League"
+    "man united": "Premier League",
+    "tottenham": "Premier League",
+    "spurs": "Premier League",
+    "newcastle": "Premier League",
+
+    # Germany
+    "bayern": "Bundesliga",
+    "bayern munich": "Bundesliga",
+    "dortmund": "Bundesliga",
+    "rb leipzig": "Bundesliga",
+
+    # Italy
+    "inter": "Serie A",
+    "inter milan": "Serie A",
+    "ac milan": "Serie A",
+    "milan": "Serie A",
+    "juventus": "Serie A",
+    "napoli": "Serie A",
+    "roma": "Serie A",
+
+    # France
+    "psg": "Ligue 1",
+    "paris saint germain": "Ligue 1",
+    "marseille": "Ligue 1",
+    "lyon": "Ligue 1"
 }
 
-
-# --------------------------------------------------
-# COMPETITIONS
-# --------------------------------------------------
 
 COMPETITIONS = [
     "premier league",
@@ -63,58 +71,38 @@ COMPETITIONS = [
 ]
 
 
-# --------------------------------------------------
-# GLOBAL FOOTBALL TERMS
-# --------------------------------------------------
-
 GLOBAL_TERMS = [
     "fifa",
     "uefa",
     "transfer",
-    "transfer window",
     "contract",
     "loan",
     "bid",
     "signing",
     "medical",
-    "release clause",
 ]
 
-
-# --------------------------------------------------
-# CLEAN HTML
-# --------------------------------------------------
 
 def clean_html(text):
     return re.sub("<.*?>", "", text or "")
 
-
-# --------------------------------------------------
-# DETECT CLUB
-# --------------------------------------------------
 
 def detect_club(text):
 
     text = text.lower()
 
     for club, league in TOP_CLUBS.items():
-
         if club in text:
-            return club, league
+            return club.title(), league
 
     return None, None
 
-
-# --------------------------------------------------
-# RELEVANCE CHECK
-# --------------------------------------------------
 
 def is_relevant(title, summary):
 
     text = f"{title} {summary}".lower()
 
     banned = ["nfl", "super bowl", "touchdown"]
-
     if any(b in text for b in banned):
         return False, None, None
 
@@ -124,6 +112,16 @@ def is_relevant(title, summary):
         return True, club, league
 
     if any(c in text for c in COMPETITIONS):
+
+        if "bundesliga" in text:
+            return True, None, "Bundesliga"
+
+        if "serie a" in text:
+            return True, None, "Serie A"
+
+        if "ligue 1" in text:
+            return True, None, "Ligue 1"
+
         return True, None, None
 
     if any(g in text for g in GLOBAL_TERMS):
@@ -131,10 +129,6 @@ def is_relevant(title, summary):
 
     return False, None, None
 
-
-# --------------------------------------------------
-# TIMESTAMP
-# --------------------------------------------------
 
 def parse_timestamp(entry):
 
@@ -149,11 +143,6 @@ def parse_timestamp(entry):
     return int(time.time())
 
 
-# --------------------------------------------------
-# CLUB COVERAGE GUARANTEE
-# (architectural improvement)
-# --------------------------------------------------
-
 def generate_club_watch_items():
 
     items = []
@@ -161,27 +150,18 @@ def generate_club_watch_items():
     for club, league in TOP_CLUBS.items():
 
         items.append({
-
             "title": f"{club.title()} watch — latest developments",
-            "summary": f"Monitoring news and performance around {club.title()} in {league}.",
-
+            "summary": f"Monitoring {club.title()} in {league}.",
             "category": "football",
             "context": "club_watch",
-
             "teams": [club],
             "league": league,
-
             "date": int(time.time()),
-
-            "query": f"{club} football match players stadium celebration"
+            "query": f"{club} football match stadium players"
         })
 
     return items
 
-
-# --------------------------------------------------
-# FETCH NEWS
-# --------------------------------------------------
 
 def fetch_news():
 
@@ -194,7 +174,6 @@ def fetch_news():
         for entry in feed.entries:
 
             title = entry.get("title", "")
-
             summary = clean_html(entry.get("summary", ""))
 
             if not title:
@@ -206,40 +185,23 @@ def fetch_news():
                 continue
 
             articles.append({
-
                 "title": title,
                 "summary": summary,
-
                 "category": "football",
                 "context": "news",
-
                 "teams": [club] if club else [],
                 "league": league if league else "",
-
                 "date": parse_timestamp(entry),
-
-                "query": f"{title} football soccer players stadium crowd"
+                "query": f"{title} football match players stadium"
             })
 
-
-    # --------------------------------------------------
-    # GUARANTEE CLUB COVERAGE
-    # --------------------------------------------------
-
     articles += generate_club_watch_items()
-
-
-    # --------------------------------------------------
-    # DEDUPE
-    # --------------------------------------------------
 
     seen = set()
     unique = []
 
     for a in articles:
-
         key = a["title"].lower()
-
         if key not in seen:
             seen.add(key)
             unique.append(a)
